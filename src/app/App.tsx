@@ -1,6 +1,45 @@
 import { useEffect, useState } from "react"
 import { supabase } from "./lib/supabase"
+import { useAuth } from "../hooks/useAuth";
+if (!auth.session) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
+      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-6">
+        <h2 className="text-2xl font-semibold">Login</h2>
 
+        <input
+          type="email"
+          placeholder="E-mail"
+          onChange={(e) => (window.email = e.target.value)}
+          className="mt-4 w-full rounded-xl p-3 bg-slate-900 border border-white/10"
+        />
+
+        <input
+          type="password"
+          placeholder="Senha"
+          onChange={(e) => (window.password = e.target.value)}
+          className="mt-3 w-full rounded-xl p-3 bg-slate-900 border border-white/10"
+        />
+
+        <button
+          onClick={async () => {
+            try {
+              await auth.signIn(window.email, window.password)
+            } catch (e: any) {
+              alert(e.message)
+            }
+          }}
+          className="mt-4 w-full bg-white text-black p-3 rounded-xl font-semibold"
+        >
+          Entrar
+        </button>
+      </div>
+    </div>
+  );
+}
+<button onClick={auth.signOut}>
+  Sair
+</button>
 type Property = {
   id: string
   title: string
