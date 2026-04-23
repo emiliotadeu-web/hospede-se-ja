@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
 
@@ -46,9 +46,31 @@ type OwnerLeadImage = {
   created_at?: string;
 };
 
+type ExternalCalendar = {
+  id: string;
+  property_id: string;
+  platform: string;
+  ical_url: string;
+  is_active?: boolean;
+  last_synced_at?: string | null;
+  created_at?: string;
+};
+
+type PropertyBlock = {
+  id: string;
+  property_id: string;
+  source: string;
+  external_calendar_id?: string | null;
+  start_date: string;
+  end_date: string;
+  external_event_uid?: string | null;
+  notes?: string | null;
+  created_at?: string;
+};
+
 type ViewMode = "list" | "details" | "admin";
 
-const WHATSAPP_NUMBER = "5561999999999";
+const WHATSAPP_NUMBER = "5561981239357";
 const PLATFORM_FEE_PERCENT = 0.1;
 
 export default function App() {
@@ -58,6 +80,9 @@ export default function App() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [ownerLeads, setOwnerLeads] = useState<OwnerLead[]>([]);
   const [ownerLeadImages, setOwnerLeadImages] = useState<OwnerLeadImage[]>([]);
+  const [externalCalendars, setExternalCalendars] = useState<ExternalCalendar[]>([]);
+  const [propertyBlocks, setPropertyBlocks] = useState<PropertyBlock[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<ViewMode>("list");
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
@@ -93,6 +118,11 @@ export default function App() {
   const [leadFilter, setLeadFilter] = useState("todos");
   const [leadUpdateMessage, setLeadUpdateMessage] = useState("");
 
+  const [calendarPropertyId, setCalendarPropertyId] = useState("");
+  const [calendarPlatform, setCalendarPlatform] = useState("airbnb");
+  const [calendarUrl, setCalendarUrl] = useState("");
+  const [calendarMessage, setCalendarMessage] = useState("");
+
   useEffect(() => {
     loadAll();
   }, []);
@@ -105,6 +135,8 @@ export default function App() {
       reservationResponse,
       ownerLeadResponse,
       ownerLeadImageResponse,
+      externalCalendarResponse,
+      propertyBlockResponse,
     ] = await Promise.all([
       supabase
         .from("properties")
@@ -123,12 +155,22 @@ export default function App() {
         .from("owner_lead_images")
         .select("*")
         .order("created_at", { ascending: false }),
+      supabase
+        .from("property_external_calendars")
+        .select("*")
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("property_blocks")
+        .select("*")
+        .order("start_date", { ascending: true }),
     ]);
 
     setProperties((propertyResponse.data as Property[]) || []);
     setReservations((reservationResponse.data as Reservation[]) || []);
     setOwnerLeads((ownerLeadResponse.data as OwnerLead[]) || []);
     setOwnerLeadImages((ownerLeadImageResponse.data as OwnerLeadImage[]) || []);
+    setExternalCalendars((externalCalendarResponse.data as ExternalCalendar[]) || []);
+    setPropertyBlocks((propertyBlockResponse.data as PropertyBlock[]) || []);
     setLoading(false);
   }
 
@@ -143,6 +185,7 @@ export default function App() {
     setSelectedProperty(null);
     setSuccessMessage("");
     setLeadUpdateMessage("");
+    setCalendarMessage("");
   }
 
   function openWhatsApp(message: string) {
@@ -195,6 +238,30 @@ export default function App() {
 
     if (!guestName || !guestEmail || !checkIn || !checkOut) {
       alert("Preencha nome, e-mail, check-in e check-out.");
+      return;
+    }
+
+    if (checkOut <= checkIn) {
+      alert("A data de check-out deve ser maior que a data de check-in.");
+      return;
+    }
+
+    const { data: conflicts, error: conflictError } = await supabase
+      .from("property_blocks")
+      .select("*")
+      .eq("property_id", selectedProperty.id)
+      .lt("start_date", checkOut)
+      .gt("end_date", checkIn);
+
+    if (conflictError) {
+      alert(`Erro ao verificar disponibilidade: ${conflictError.message}`);
+      return;
+    }
+
+    if (conflicts && conflicts.length > 0) {
+      alert(
+        "Este imóvel está bloqueado nesse período por reserva em outra plataforma ou bloqueio manual."
+      );
       return;
     }
 
@@ -396,6 +463,35 @@ export default function App() {
     loadAll();
   }
 
+  async function handleCreateExternalCalendar() {
+    setCalendarMessage("");
+
+    if (!calendarPropertyId || !calendarPlatform || !calendarUrl) {
+      setCalendarMessage("Selecione o imóvel, a plataforma e informe a URL iCal.");
+      return;
+    }
+
+    const { error } = await supabase.from("property_external_calendars").insert([
+      {
+        property_id: calendarPropertyId,
+        platform: calendarPlatform,
+        ical_url: calendarUrl,
+        is_active: true,
+      },
+    ]);
+
+    if (error) {
+      alert(`Erro ao salvar calendário externo: ${error.message}`);
+      return;
+    }
+
+    setCalendarMessage("Calendário externo cadastrado com sucesso.");
+    setCalendarPropertyId("");
+    setCalendarPlatform("airbnb");
+    setCalendarUrl("");
+    loadAll();
+  }
+
   const filteredOwnerLeads =
     leadFilter === "todos"
       ? ownerLeads
@@ -423,6 +519,11 @@ export default function App() {
       sum + Number(reservation.total_amount || 0) * (1 - PLATFORM_FEE_PERCENT),
     0
   );
+
+  const selectedPropertyBlocks = useMemo(() => {
+    if (!selectedProperty) return [];
+    return propertyBlocks.filter((block) => block.property_id === selectedProperty.id);
+  }, [propertyBlocks, selectedProperty]);
 
   if (auth.loading) {
     return (
@@ -1089,6 +1190,28 @@ export default function App() {
                       "Flat premium para curta temporada em Brasília, com ótima localização e conforto para estadias executivas e lazer."}
                   </p>
 
+                  {selectedPropertyBlocks.length > 0 && (
+                    <div
+                      style={{
+                        marginTop: 20,
+                        background: "#fff7ed",
+                        color: "#9a3412",
+                        padding: 16,
+                        borderRadius: 16,
+                        border: "1px solid #fed7aa",
+                      }}
+                    >
+                      <strong>Datas bloqueadas encontradas</strong>
+                      <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+                        {selectedPropertyBlocks.slice(0, 5).map((block) => (
+                          <div key={block.id}>
+                            {block.start_date} até {block.end_date} • origem: {block.source}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div style={{ marginTop: 20 }}>
                     <button
                       onClick={() => handleReserveWhatsAppDirect(selectedProperty)}
@@ -1165,7 +1288,7 @@ export default function App() {
             <div>
               <h2 style={{ margin: 0, fontSize: 34, color: "#111" }}>Painel Admin</h2>
               <p style={{ marginTop: 8, color: "#666", fontSize: 18 }}>
-                Cadastre imóveis e acompanhe as reservas e leads recebidos.
+                Cadastre imóveis e acompanhe reservas, leads e bloqueios externos.
               </p>
             </div>
 
@@ -1205,42 +1328,102 @@ export default function App() {
                 gap: 24,
               }}
             >
-              <div style={cardStyle}>
-                <h3 style={{ marginTop: 0, fontSize: 28, color: "#111" }}>
-                  Cadastrar imóvel
-                </h3>
+              <div style={{ display: "grid", gap: 24 }}>
+                <div style={cardStyle}>
+                  <h3 style={{ marginTop: 0, fontSize: 28, color: "#111" }}>
+                    Cadastrar imóvel
+                  </h3>
 
-                {adminMessage && (
-                  <div
-                    style={{
-                      marginBottom: 16,
-                      background: "#ecfdf3",
-                      color: "#166534",
-                      padding: 14,
-                      borderRadius: 14,
-                      fontWeight: 700,
-                    }}
-                  >
-                    {adminMessage}
+                  {adminMessage && (
+                    <div
+                      style={{
+                        marginBottom: 16,
+                        background: "#ecfdf3",
+                        color: "#166534",
+                        padding: 14,
+                        borderRadius: 14,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {adminMessage}
+                    </div>
+                  )}
+
+                  <div style={{ display: "grid", gap: 12 }}>
+                    <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Título do imóvel" style={inputStyle} />
+                    <input value={region} onChange={(e) => setRegion(e.target.value)} placeholder="Região" style={inputStyle} />
+                    <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Endereço" style={inputStyle} />
+                    <input value={nightlyRate} onChange={(e) => setNightlyRate(e.target.value)} placeholder="Diária" style={inputStyle} />
+                    <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="URL da imagem" style={inputStyle} />
+                    <textarea
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="Descrição"
+                      style={{ ...inputStyle, minHeight: 120, resize: "vertical" }}
+                    />
+
+                    <button onClick={handleCreateProperty} style={primaryWideButton}>
+                      Salvar imóvel
+                    </button>
                   </div>
-                )}
+                </div>
 
-                <div style={{ display: "grid", gap: 12 }}>
-                  <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Título do imóvel" style={inputStyle} />
-                  <input value={region} onChange={(e) => setRegion(e.target.value)} placeholder="Região" style={inputStyle} />
-                  <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Endereço" style={inputStyle} />
-                  <input value={nightlyRate} onChange={(e) => setNightlyRate(e.target.value)} placeholder="Diária" style={inputStyle} />
-                  <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="URL da imagem" style={inputStyle} />
-                  <textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Descrição"
-                    style={{ ...inputStyle, minHeight: 120, resize: "vertical" }}
-                  />
+                <div style={cardStyle}>
+                  <h3 style={{ marginTop: 0, fontSize: 28, color: "#111" }}>
+                    Calendário externo (iCal)
+                  </h3>
 
-                  <button onClick={handleCreateProperty} style={primaryWideButton}>
-                    Salvar imóvel
-                  </button>
+                  {calendarMessage && (
+                    <div
+                      style={{
+                        marginBottom: 16,
+                        background: "#ecfdf3",
+                        color: "#166534",
+                        padding: 14,
+                        borderRadius: 14,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {calendarMessage}
+                    </div>
+                  )}
+
+                  <div style={{ display: "grid", gap: 12 }}>
+                    <select
+                      value={calendarPropertyId}
+                      onChange={(e) => setCalendarPropertyId(e.target.value)}
+                      style={inputStyle}
+                    >
+                      <option value="">Selecione o imóvel</option>
+                      {properties.map((property) => (
+                        <option key={property.id} value={property.id}>
+                          {property.title}
+                        </option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={calendarPlatform}
+                      onChange={(e) => setCalendarPlatform(e.target.value)}
+                      style={inputStyle}
+                    >
+                      <option value="airbnb">Airbnb</option>
+                      <option value="booking">Booking</option>
+                      <option value="vrbo">Vrbo</option>
+                      <option value="outro">Outro</option>
+                    </select>
+
+                    <input
+                      value={calendarUrl}
+                      onChange={(e) => setCalendarUrl(e.target.value)}
+                      placeholder="URL iCal / ICS"
+                      style={inputStyle}
+                    />
+
+                    <button onClick={handleCreateExternalCalendar} style={primaryWideButton}>
+                      Salvar calendário externo
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -1267,6 +1450,86 @@ export default function App() {
                         </p>
                       </div>
                     ))}
+                  </div>
+                </div>
+
+                <div style={cardStyle}>
+                  <h3 style={{ marginTop: 0, fontSize: 28, color: "#111" }}>
+                    Calendários externos cadastrados
+                  </h3>
+
+                  <div style={{ display: "grid", gap: 14 }}>
+                    {externalCalendars.length === 0 && (
+                      <p style={{ color: "#666" }}>Nenhum calendário externo cadastrado ainda.</p>
+                    )}
+
+                    {externalCalendars.map((calendar) => {
+                      const property = properties.find((p) => p.id === calendar.property_id);
+                      return (
+                        <div
+                          key={calendar.id}
+                          style={{
+                            border: "1px solid #ececec",
+                            borderRadius: 16,
+                            padding: 16,
+                          }}
+                        >
+                          <strong style={{ fontSize: 18 }}>
+                            {property?.title || "Imóvel"}
+                          </strong>
+                          <p style={{ margin: "8px 0 0", color: "#666" }}>
+                            Plataforma: {calendar.platform}
+                          </p>
+                          <p style={{ margin: "8px 0 0", color: "#666", wordBreak: "break-all" }}>
+                            {calendar.ical_url}
+                          </p>
+                          <p style={{ margin: "8px 0 0", color: "#666" }}>
+                            Última sincronização: {calendar.last_synced_at || "Ainda não sincronizado"}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div style={cardStyle}>
+                  <h3 style={{ marginTop: 0, fontSize: 28, color: "#111" }}>
+                    Bloqueios externos
+                  </h3>
+
+                  <div style={{ display: "grid", gap: 14 }}>
+                    {propertyBlocks.length === 0 && (
+                      <p style={{ color: "#666" }}>Nenhum bloqueio encontrado ainda.</p>
+                    )}
+
+                    {propertyBlocks.map((block) => {
+                      const property = properties.find((p) => p.id === block.property_id);
+                      return (
+                        <div
+                          key={block.id}
+                          style={{
+                            border: "1px solid #ececec",
+                            borderRadius: 16,
+                            padding: 16,
+                          }}
+                        >
+                          <strong style={{ fontSize: 18 }}>
+                            {property?.title || "Imóvel"}
+                          </strong>
+                          <p style={{ margin: "8px 0 0", color: "#666" }}>
+                            Origem: {block.source}
+                          </p>
+                          <p style={{ margin: "8px 0 0", color: "#111" }}>
+                            {block.start_date} até {block.end_date}
+                          </p>
+                          {block.notes && (
+                            <p style={{ margin: "8px 0 0", color: "#666" }}>
+                              {block.notes}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
