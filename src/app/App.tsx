@@ -1,8 +1,3 @@
-import { useEffect, useState } from "react"
-import { supabase } from "./lib/supabase"
-import { useAuth } from "../hooks/useAuth";
-
-
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
@@ -31,192 +26,114 @@ type Reservation = {
   total_amount?: number;
 };
 
-type ViewMode = "list" | "details" | "admin" | "login";
+type ViewMode = "list" | "details" | "admin";
 
 export default function App() {
   const auth = useAuth();
 
-  if (!auth.session) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
-        <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-6">
-          <h2 className="text-2xl font-semibold">Login</h2>
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<ViewMode>("list");
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
 
-          <input
-            type="email"
-            placeholder="E-mail"
-            onChange={(e) => ((window as any).email = e.target.value)}
-            className="mt-4 w-full rounded-xl p-3 bg-slate-900 border border-white/10"
-          />
+  const [guestName, setGuestName] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
+  const [checkIn, setCheckIn] = useState("");
+  const [checkOut, setCheckOut] = useState("");
+  const [guests, setGuests] = useState(1);
+  const [successMessage, setSuccessMessage] = useState("");
 
-          <input
-            type="password"
-            placeholder="Senha"
-            onChange={(e) => ((window as any).password = e.target.value)}
-            className="mt-3 w-full rounded-xl p-3 bg-slate-900 border border-white/10"
-          />
+  const [title, setTitle] = useState("");
+  const [region, setRegion] = useState("");
+  const [address, setAddress] = useState("");
+  const [nightlyRate, setNightlyRate] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [description, setDescription] = useState("");
+  const [adminMessage, setAdminMessage] = useState("");
 
-          <button
-            onClick={async () => {
-              try {
-                await auth.signIn((window as any).email, (window as any).password);
-              } catch (e: any) {
-                alert(e.message);
-              }
-            }}
-            className="mt-4 w-full bg-white text-black p-3 rounded-xl font-semibold"
-          >
-            Entrar
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-type Reservation = {
-  id: string
-  property_id: string
-  guest_name: string
-  email?: string | null
-  phone?: string | null
-  check_in: string
-  check_out: string
-  guests?: number
-  status?: string
-  total_amount?: number
-}
-
-type ViewMode = "list" | "details" | "admin" | "login"
-
-export default function App() {
-  const auth = useAuth();
-  if (!auth.session) {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-6">
-        <h2 className="text-2xl font-semibold">Login</h2>
-
-        <input
-          type="email"
-          placeholder="E-mail"
-          onChange={(e) => ((window as any).email = e.target.value)}
-          className="mt-4 w-full rounded-xl p-3 bg-slate-900 border border-white/10"
-        />
-
-        <input
-          type="password"
-          placeholder="Senha"
-          onChange={(e) => ((window as any).password = e.target.value)}
-          className="mt-3 w-full rounded-xl p-3 bg-slate-900 border border-white/10"
-        />
-
-        <button
-          onClick={async () => {
-            try {
-              await auth.signIn((window as any).email, (window as any).password);
-            } catch (e: any) {
-              alert(e.message);
-            }
-          }}
-          className="mt-4 w-full bg-white text-black p-3 rounded-xl font-semibold"
-        >
-          Entrar
-        </button>
-      </div>
-    </div>
-  );
-}
-  const [session, setSession] = useState<any>(null)
-  const [loginEmail, setLoginEmail] = useState("")
-  const [loginPassword, setLoginPassword] = useState("")
-  const [loginMessage, setLoginMessage] = useState("")
-  const [properties, setProperties] = useState<Property[]>([])
-  const [reservations, setReservations] = useState<Reservation[]>([])
-  const [loading, setLoading] = useState(true)
-  const [view, setView] = useState<ViewMode>("list")
-  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null)
-
-  const [guestName, setGuestName] = useState("")
-  const [guestEmail, setGuestEmail] = useState("")
-  const [guestPhone, setGuestPhone] = useState("")
-  const [checkIn, setCheckIn] = useState("")
-  const [checkOut, setCheckOut] = useState("")
-  const [guests, setGuests] = useState(1)
-  const [successMessage, setSuccessMessage] = useState("")
-
-  const [title, setTitle] = useState("")
-  const [region, setRegion] = useState("")
-  const [address, setAddress] = useState("")
-  const [nightlyRate, setNightlyRate] = useState("")
-  const [imageUrl, setImageUrl] = useState("")
-  const [description, setDescription] = useState("")
-  const [adminMessage, setAdminMessage] = useState("")
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginMessage, setLoginMessage] = useState("");
 
   useEffect(() => {
-  loadAll()
-
-  supabase.auth.getSession().then(({ data }) => {
-    setSession(data.session ?? null)
-  })
-
-  const {
-    data: { subscription },
-  } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-    setSession(nextSession)
-  })
-
-  return () => subscription.unsubscribe()
-}, [])
+    loadAll();
+  }, []);
 
   async function loadAll() {
-    setLoading(true)
+    setLoading(true);
 
     const { data: propertyData } = await supabase
       .from("properties")
       .select("*")
       .eq("status", "published")
-      .order("created_at", { ascending: false })
+      .order("created_at", { ascending: false });
 
     const { data: reservationData } = await supabase
       .from("reservations")
       .select("*")
-      .order("created_at", { ascending: false })
+      .order("created_at", { ascending: false });
 
-    setProperties((propertyData as Property[]) || [])
-    setReservations((reservationData as Reservation[]) || [])
-    setLoading(false)
+    setProperties((propertyData as Property[]) || []);
+    setReservations((reservationData as Reservation[]) || []);
+    setLoading(false);
   }
 
   function openDetails(property: Property) {
-    setSelectedProperty(property)
-    setView("details")
-    setSuccessMessage("")
+    setSelectedProperty(property);
+    setView("details");
+    setSuccessMessage("");
   }
 
   function goToList() {
-    setView("list")
-    setSelectedProperty(null)
-    setSuccessMessage("")
+    setView("list");
+    setSelectedProperty(null);
+    setSuccessMessage("");
+  }
+
+  async function handleLogin() {
+    setLoginMessage("");
+
+    if (!loginEmail || !loginPassword) {
+      setLoginMessage("Preencha e-mail e senha.");
+      return;
+    }
+
+    const { error } = await auth.signIn(loginEmail, loginPassword);
+
+    if (error) {
+      setLoginMessage(error.message);
+      return;
+    }
+
+    setLoginEmail("");
+    setLoginPassword("");
+  }
+
+  async function handleLogout() {
+    await auth.signOut();
+    setView("list");
   }
 
   async function handleReserve() {
-    if (!selectedProperty) return
+    if (!selectedProperty) return;
 
     if (!guestName || !guestEmail || !checkIn || !checkOut) {
-      alert("Preencha nome, e-mail, check-in e check-out.")
-      return
+      alert("Preencha nome, e-mail, check-in e check-out.");
+      return;
     }
 
-    const checkInDate = new Date(checkIn)
-    const checkOutDate = new Date(checkOut)
+    const checkInDate = new Date(checkIn);
+    const checkOutDate = new Date(checkOut);
     const nights = Math.max(
       1,
       Math.ceil(
         (checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)
       )
-    )
+    );
 
-    const totalAmount = selectedProperty.nightly_rate * nights
+    const totalAmount = selectedProperty.nightly_rate * nights;
 
     const { error } = await supabase.from("reservations").insert([
       {
@@ -230,53 +147,27 @@ export default function App() {
         status: "pending",
         total_amount: totalAmount,
       },
-    ])
+    ]);
 
     if (error) {
-      alert(`Erro ao criar reserva: ${error.message}`)
-      return
+      alert(`Erro ao criar reserva: ${error.message}`);
+      return;
     }
 
-    setSuccessMessage("Reserva enviada com sucesso.")
-    setGuestName("")
-    setGuestEmail("")
-    setGuestPhone("")
-    setCheckIn("")
-    setCheckOut("")
-    setGuests(1)
-    loadAll()
-  }
-async function handleLogin() {
-  setLoginMessage("")
-
-  if (!loginEmail || !loginPassword) {
-    setLoginMessage("Preencha e-mail e senha.")
-    return
+    setSuccessMessage("Reserva enviada com sucesso.");
+    setGuestName("");
+    setGuestEmail("");
+    setGuestPhone("");
+    setCheckIn("");
+    setCheckOut("");
+    setGuests(1);
+    loadAll();
   }
 
-  const { error } = await supabase.auth.signInWithPassword({
-    email: loginEmail,
-    password: loginPassword,
-  })
-
-  if (error) {
-    setLoginMessage(error.message)
-    return
-  }
-
-  setLoginEmail("")
-  setLoginPassword("")
-  setView("admin")
-}
-
-async function handleLogout() {
-  await supabase.auth.signOut()
-  setView("list")
-}
   async function handleCreateProperty() {
     if (!title || !region || !address || !nightlyRate) {
-      alert("Preencha título, região, endereço e diária.")
-      return
+      alert("Preencha título, região, endereço e diária.");
+      return;
     }
 
     const { error } = await supabase.from("properties").insert([
@@ -293,21 +184,76 @@ async function handleLogout() {
         image_url: imageUrl || null,
         description: description || null,
       },
-    ])
+    ]);
 
     if (error) {
-      alert(`Erro ao cadastrar imóvel: ${error.message}`)
-      return
+      alert(`Erro ao cadastrar imóvel: ${error.message}`);
+      return;
     }
 
-    setAdminMessage("Imóvel cadastrado com sucesso.")
-    setTitle("")
-    setRegion("")
-    setAddress("")
-    setNightlyRate("")
-    setImageUrl("")
-    setDescription("")
-    loadAll()
+    setAdminMessage("Imóvel cadastrado com sucesso.");
+    setTitle("");
+    setRegion("");
+    setAddress("");
+    setNightlyRate("");
+    setImageUrl("");
+    setDescription("");
+    loadAll();
+  }
+
+  if (auth.loading) {
+    return (
+      <div style={pageStyle}>
+        <div style={cardStyle}>Carregando...</div>
+      </div>
+    );
+  }
+
+  if (!auth.session) {
+    return (
+      <div style={pageStyle}>
+        <div style={{ ...cardStyle, width: 420 }}>
+          <h2 style={{ margin: 0, fontSize: 32, color: "#111" }}>Login Admin</h2>
+          <p style={{ marginTop: 10, color: "#666" }}>
+            Entre com seu usuário para acessar o painel administrativo.
+          </p>
+
+          {loginMessage && (
+            <div
+              style={{
+                marginTop: 16,
+                background: "#fff7ed",
+                color: "#9a3412",
+                padding: 14,
+                borderRadius: 14,
+                fontWeight: 700,
+              }}
+            >
+              {loginMessage}
+            </div>
+          )}
+
+          <div style={{ marginTop: 18, display: "grid", gap: 12 }}>
+            <input
+              value={loginEmail}
+              onChange={(e) => setLoginEmail(e.target.value)}
+              placeholder="E-mail"
+              style={inputStyle}
+            />
+            <input
+              type="password"
+              value={loginPassword}
+              onChange={(e) => setLoginPassword(e.target.value)}
+              placeholder="Senha"
+              style={inputStyle}
+            />
+            <button onClick={handleLogin} style={primaryWideButton}>
+              Entrar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -366,30 +312,18 @@ async function handleLogout() {
           </div>
 
           <div style={{ display: "flex", gap: 12 }}>
-            <button
-              onClick={goToList}
-              style={secondaryButton}
-            >
-              <div style={{ display: "flex", gap: 12 }}>
-  <button onClick={goToList} style={secondaryButton}>
-    Vitrine
-  </button>
-
-  {!session ? (
-    <button onClick={() => setView("login")} style={primaryButton}>
-      Login Admin
-    </button>
-  ) : (
-    <>
-      <button onClick={() => setView("admin")} style={primaryButton}>
-        Admin
-      </button>
-      <button onClick={handleLogout} style={secondaryButton}>
-        Sair
-      </button>
-    </>
-  )}
-</div>
+            <button onClick={goToList} style={secondaryButton}>
+              Vitrine
+            </button>
+            <button onClick={() => setView("admin")} style={primaryButton}>
+              Admin
+            </button>
+            <button onClick={handleLogout} style={secondaryButton}>
+              Sair
+            </button>
+          </div>
+        </div>
+      </header>
 
       <main style={{ maxWidth: 1200, margin: "0 auto", padding: 32 }}>
         {view === "list" && (
@@ -406,16 +340,7 @@ async function handleLogout() {
             {loading && <p>Carregando imóveis...</p>}
 
             {!loading && properties.length === 0 && (
-              <div
-                style={{
-                  background: "#fff",
-                  borderRadius: 20,
-                  padding: 30,
-                  border: "1px solid #ececec",
-                }}
-              >
-                Nenhum imóvel cadastrado ainda.
-              </div>
+              <div style={cardStyle}>Nenhum imóvel cadastrado ainda.</div>
             )}
 
             <div
@@ -426,21 +351,13 @@ async function handleLogout() {
               }}
             >
               {properties.map((p) => (
-                <div
-                  key={p.id}
-                  style={{
-                    background: "#fff",
-                    borderRadius: 24,
-                    overflow: "hidden",
-                    border: "1px solid #ececec",
-                    boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
-                  }}
-                >
+                <div key={p.id} style={cardStyle}>
                   <div
                     style={{
                       height: 220,
                       background: "#ddd",
                       overflow: "hidden",
+                      borderRadius: 18,
                     }}
                   >
                     {p.image_url ? (
@@ -470,7 +387,7 @@ async function handleLogout() {
                     )}
                   </div>
 
-                  <div style={{ padding: 20 }}>
+                  <div style={{ paddingTop: 20 }}>
                     <div
                       style={{
                         display: "flex",
@@ -520,17 +437,10 @@ async function handleLogout() {
                     </p>
 
                     <div style={{ marginTop: 18, display: "flex", gap: 12 }}>
-                      <button
-                        onClick={() => openDetails(p)}
-                        style={primaryWideButton}
-                      >
+                      <button onClick={() => openDetails(p)} style={primaryWideButton}>
                         Reservar
                       </button>
-
-                      <button
-                        onClick={() => openDetails(p)}
-                        style={secondaryWideButton}
-                      >
+                      <button onClick={() => openDetails(p)} style={secondaryWideButton}>
                         Ver detalhes
                       </button>
                     </div>
@@ -540,58 +450,7 @@ async function handleLogout() {
             </div>
           </>
         )}
-{view === "login" && (
-  <div
-    style={{
-      maxWidth: 480,
-      margin: "0 auto",
-      background: "#fff",
-      borderRadius: 24,
-      border: "1px solid #ececec",
-      boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
-      padding: 24,
-    }}
-  >
-    <h2 style={{ margin: 0, fontSize: 32, color: "#111" }}>Login do Admin</h2>
-    <p style={{ marginTop: 10, color: "#666" }}>
-      Entre com seu usuário para acessar o painel administrativo.
-    </p>
 
-    {loginMessage && (
-      <div
-        style={{
-          marginTop: 16,
-          background: "#fff7ed",
-          color: "#9a3412",
-          padding: 14,
-          borderRadius: 14,
-          fontWeight: 700,
-        }}
-      >
-        {loginMessage}
-      </div>
-    )}
-
-    <div style={{ marginTop: 18, display: "grid", gap: 12 }}>
-      <input
-        value={loginEmail}
-        onChange={(e) => setLoginEmail(e.target.value)}
-        placeholder="E-mail"
-        style={inputStyle}
-      />
-      <input
-        type="password"
-        value={loginPassword}
-        onChange={(e) => setLoginPassword(e.target.value)}
-        placeholder="Senha"
-        style={inputStyle}
-      />
-      <button onClick={handleLogin} style={primaryWideButton}>
-        Entrar
-      </button>
-    </div>
-  </div>
-)}
         {view === "details" && selectedProperty && (
           <div
             style={{
@@ -605,17 +464,8 @@ async function handleLogout() {
                 ← Voltar
               </button>
 
-              <div
-                style={{
-                  marginTop: 20,
-                  background: "#fff",
-                  borderRadius: 24,
-                  overflow: "hidden",
-                  border: "1px solid #ececec",
-                  boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
-                }}
-              >
-                <div style={{ height: 360, background: "#ddd" }}>
+              <div style={{ ...cardStyle, marginTop: 20 }}>
+                <div style={{ height: 360, background: "#ddd", borderRadius: 18 }}>
                   {selectedProperty.image_url ? (
                     <img
                       src={selectedProperty.image_url}
@@ -625,6 +475,7 @@ async function handleLogout() {
                         height: "100%",
                         objectFit: "cover",
                         display: "block",
+                        borderRadius: 18,
                       }}
                     />
                   ) : (
@@ -643,7 +494,7 @@ async function handleLogout() {
                   )}
                 </div>
 
-                <div style={{ padding: 24 }}>
+                <div style={{ paddingTop: 24 }}>
                   <h2 style={{ margin: 0, fontSize: 36, color: "#111" }}>
                     {selectedProperty.title}
                   </h2>
@@ -686,11 +537,7 @@ async function handleLogout() {
             <div>
               <div
                 style={{
-                  background: "#fff",
-                  borderRadius: 24,
-                  border: "1px solid #ececec",
-                  boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
-                  padding: 24,
+                  ...cardStyle,
                   position: "sticky",
                   top: 110,
                 }}
@@ -739,37 +586,23 @@ async function handleLogout() {
           </div>
         )}
 
-        {view === "admin" && !session && (
-  <div
-    style={{
-      background: "#fff",
-      borderRadius: 24,
-      border: "1px solid #ececec",
-      boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
-      padding: 24,
-    }}
-  >
-    <h2 style={{ margin: 0, fontSize: 30, color: "#111" }}>Acesso restrito</h2>
-    <p style={{ marginTop: 10, color: "#666", fontSize: 18 }}>
-      Faça login para acessar o painel administrativo.
-    </p>
-    <button onClick={() => setView("login")} style={{ ...primaryWideButton, marginTop: 16 }}>
-      Ir para login
-    </button>
-  </div>
-)}
+        {view === "admin" && (
+          <div style={{ display: "grid", gap: 28 }}>
+            <div>
+              <h2 style={{ margin: 0, fontSize: 34, color: "#111" }}>Painel Admin</h2>
+              <p style={{ marginTop: 8, color: "#666", fontSize: 18 }}>
+                Cadastre imóveis e acompanhe as reservas recebidas.
+              </p>
+            </div>
 
-{view === "admin" && session && (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "0.9fr 1.1fr",
+                gap: 24,
+              }}
             >
-              <div
-                style={{
-                  background: "#fff",
-                  borderRadius: 24,
-                  border: "1px solid #ececec",
-                  boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
-                  padding: 24,
-                }}
-              >
+              <div style={cardStyle}>
                 <h3 style={{ marginTop: 0, fontSize: 28, color: "#111" }}>
                   Cadastrar imóvel
                 </h3>
@@ -795,7 +628,12 @@ async function handleLogout() {
                   <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Endereço" style={inputStyle} />
                   <input value={nightlyRate} onChange={(e) => setNightlyRate(e.target.value)} placeholder="Diária" style={inputStyle} />
                   <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="URL da imagem" style={inputStyle} />
-                  <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descrição" style={{ ...inputStyle, minHeight: 120, resize: "vertical" }} />
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Descrição"
+                    style={{ ...inputStyle, minHeight: 120, resize: "vertical" }}
+                  />
 
                   <button onClick={handleCreateProperty} style={primaryWideButton}>
                     Salvar imóvel
@@ -804,15 +642,7 @@ async function handleLogout() {
               </div>
 
               <div style={{ display: "grid", gap: 24 }}>
-                <div
-                  style={{
-                    background: "#fff",
-                    borderRadius: 24,
-                    border: "1px solid #ececec",
-                    boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
-                    padding: 24,
-                  }}
-                >
+                <div style={cardStyle}>
                   <h3 style={{ marginTop: 0, fontSize: 28, color: "#111" }}>
                     Imóveis cadastrados
                   </h3>
@@ -837,15 +667,7 @@ async function handleLogout() {
                   </div>
                 </div>
 
-                <div
-                  style={{
-                    background: "#fff",
-                    borderRadius: 24,
-                    border: "1px solid #ececec",
-                    boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
-                    padding: 24,
-                  }}
-                >
+                <div style={cardStyle}>
                   <h3 style={{ marginTop: 0, fontSize: 28, color: "#111" }}>
                     Reservas recebidas
                   </h3>
@@ -883,8 +705,25 @@ async function handleLogout() {
         )}
       </main>
     </div>
-  )
+  );
 }
+
+const pageStyle: React.CSSProperties = {
+  minHeight: "100vh",
+  background: "#f7f7f7",
+  fontFamily: "Arial, sans-serif",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+const cardStyle: React.CSSProperties = {
+  background: "#fff",
+  borderRadius: 24,
+  border: "1px solid #ececec",
+  boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
+  padding: 24,
+};
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
@@ -894,7 +733,7 @@ const inputStyle: React.CSSProperties = {
   fontSize: 16,
   outline: "none",
   boxSizing: "border-box",
-}
+};
 
 const primaryButton: React.CSSProperties = {
   background: "#ff385c",
@@ -904,7 +743,7 @@ const primaryButton: React.CSSProperties = {
   padding: "12px 20px",
   fontWeight: 700,
   cursor: "pointer",
-}
+};
 
 const secondaryButton: React.CSSProperties = {
   background: "#fff",
@@ -914,7 +753,7 @@ const secondaryButton: React.CSSProperties = {
   padding: "12px 20px",
   fontWeight: 700,
   cursor: "pointer",
-}
+};
 
 const primaryWideButton: React.CSSProperties = {
   flex: 1,
@@ -925,7 +764,7 @@ const primaryWideButton: React.CSSProperties = {
   padding: "14px 16px",
   fontWeight: 700,
   cursor: "pointer",
-}
+};
 
 const secondaryWideButton: React.CSSProperties = {
   flex: 1,
@@ -936,4 +775,4 @@ const secondaryWideButton: React.CSSProperties = {
   padding: "14px 16px",
   fontWeight: 700,
   cursor: "pointer",
-}
+};
