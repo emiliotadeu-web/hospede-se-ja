@@ -25,6 +25,7 @@ type Reservation = {
   status?: string;
   total_amount?: number;
 };
+
 type OwnerLead = {
   id: string;
   name: string;
@@ -34,6 +35,14 @@ type OwnerLead = {
   message?: string | null;
   created_at?: string;
 };
+
+type OwnerLeadImage = {
+  id: string;
+  owner_lead_id: string;
+  image_url: string;
+  created_at?: string;
+};
+
 type ViewMode = "list" | "details" | "admin";
 
 const WHATSAPP_NUMBER = "5561981239357";
@@ -43,6 +52,8 @@ export default function App() {
 
   const [properties, setProperties] = useState<Property[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [ownerLeads, setOwnerLeads] = useState<OwnerLead[]>([]);
+  const [ownerLeadImages, setOwnerLeadImages] = useState<OwnerLeadImage[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<ViewMode>("list");
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
@@ -62,16 +73,18 @@ export default function App() {
   const [imageUrl, setImageUrl] = useState("");
   const [description, setDescription] = useState("");
   const [adminMessage, setAdminMessage] = useState("");
-const [ownerLeads, setOwnerLeads] = useState<OwnerLead[]>([]);
-const [leadName, setLeadName] = useState("");
-const [leadPhone, setLeadPhone] = useState("");
-const [leadRegion, setLeadRegion] = useState("");
-const [leadPropertyType, setLeadPropertyType] = useState("");
-const [leadMessage, setLeadMessage] = useState("");
-const [leadSuccessMessage, setLeadSuccessMessage] = useState("");
+
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginMessage, setLoginMessage] = useState("");
+
+  const [leadName, setLeadName] = useState("");
+  const [leadPhone, setLeadPhone] = useState("");
+  const [leadRegion, setLeadRegion] = useState("");
+  const [leadPropertyType, setLeadPropertyType] = useState("");
+  const [leadMessage, setLeadMessage] = useState("");
+  const [leadSuccessMessage, setLeadSuccessMessage] = useState("");
+  const [leadFiles, setLeadFiles] = useState<FileList | null>(null);
 
   useEffect(() => {
     loadAll();
@@ -80,25 +93,35 @@ const [leadSuccessMessage, setLeadSuccessMessage] = useState("");
   async function loadAll() {
     setLoading(true);
 
-    const { data: propertyData } = await supabase
-      .from("properties")
-      .select("*")
-      .eq("status", "published")
-      .order("created_at", { ascending: false });
+    const [
+      propertyResponse,
+      reservationResponse,
+      ownerLeadResponse,
+      ownerLeadImageResponse,
+    ] = await Promise.all([
+      supabase
+        .from("properties")
+        .select("*")
+        .eq("status", "published")
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("reservations")
+        .select("*")
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("owner_leads")
+        .select("*")
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("owner_lead_images")
+        .select("*")
+        .order("created_at", { ascending: false }),
+    ]);
 
-    const { data: reservationData } = await supabase
-      .from("reservations")
-      .select("*")
-      .order("created_at", { ascending: false });
-    const { data: ownerLeadData } = await supabase
-      .from("owner_leads")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-setOwnerLeads((ownerLeadData as OwnerLead[]) || []);
-
-    setProperties((propertyData as Property[]) || []);
-    setReservations((reservationData as Reservation[]) || []);
+    setProperties((propertyResponse.data as Property[]) || []);
+    setReservations((reservationResponse.data as Reservation[]) || []);
+    setOwnerLeads((ownerLeadResponse.data as OwnerLead[]) || []);
+    setOwnerLeadImages((ownerLeadImageResponse.data as OwnerLeadImage[]) || []);
     setLoading(false);
   }
 
@@ -127,14 +150,14 @@ setOwnerLeads((ownerLeadData as OwnerLead[]) || []);
 
   function handleReserveWhatsAppDirect(property: Property) {
     const message =
-      `Olá! Tenho interesse neste flat:%0A%0A` +
-      `Imóvel: ${property.title}%0A` +
-      `Região: ${property.region}%0A` +
-      `Endereço: ${property.address}%0A` +
-      `Valor: R$ ${property.nightly_rate} por noite%0A%0A` +
+      `Olá! Tenho interesse neste flat:\n\n` +
+      `Imóvel: ${property.title}\n` +
+      `Região: ${property.region}\n` +
+      `Endereço: ${property.address}\n` +
+      `Valor: R$ ${property.nightly_rate} por noite\n\n` +
       `Gostaria de mais informações.`;
 
-    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${message}`, "_blank");
+    openWhatsApp(message);
   }
 
   async function handleLogin() {
@@ -198,14 +221,14 @@ setOwnerLeads((ownerLeadData as OwnerLead[]) || []);
     }
 
     const whatsappMessage =
-      `Olá! Recebi uma nova solicitação de reserva pelo site.%0A%0A` +
-      `Imóvel: ${selectedProperty.title}%0A` +
-      `Nome: ${guestName}%0A` +
-      `E-mail: ${guestEmail}%0A` +
-      `Telefone: ${guestPhone || "Não informado"}%0A` +
-      `Check-in: ${checkIn}%0A` +
-      `Check-out: ${checkOut}%0A` +
-      `Hóspedes: ${guests}%0A` +
+      `Olá! Recebi uma nova solicitação de reserva pelo site.\n\n` +
+      `Imóvel: ${selectedProperty.title}\n` +
+      `Nome: ${guestName}\n` +
+      `E-mail: ${guestEmail}\n` +
+      `Telefone: ${guestPhone || "Não informado"}\n` +
+      `Check-in: ${checkIn}\n` +
+      `Check-out: ${checkOut}\n` +
+      `Hóspedes: ${guests}\n` +
       `Valor estimado: R$ ${totalAmount}`;
 
     setSuccessMessage("Reserva enviada com sucesso.");
@@ -217,7 +240,7 @@ setOwnerLeads((ownerLeadData as OwnerLead[]) || []);
     setGuests(1);
     loadAll();
 
-    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${whatsappMessage}`, "_blank");
+    openWhatsApp(whatsappMessage);
   }
 
   async function handleCreateProperty() {
@@ -256,45 +279,80 @@ setOwnerLeads((ownerLeadData as OwnerLead[]) || []);
     setDescription("");
     loadAll();
   }
-async function handleCreateOwnerLead() {
-  if (!leadName || !leadPhone) {
-    alert("Preencha nome e telefone.");
-    return;
+
+  async function handleCreateOwnerLead() {
+    if (!leadName || !leadPhone) {
+      alert("Preencha nome e telefone.");
+      return;
+    }
+
+    const { data: leadData, error: leadError } = await supabase
+      .from("owner_leads")
+      .insert([
+        {
+          name: leadName,
+          phone: leadPhone,
+          region: leadRegion || null,
+          property_type: leadPropertyType || null,
+          message: leadMessage || null,
+        },
+      ])
+      .select()
+      .single();
+
+    if (leadError) {
+      alert(`Erro ao salvar lead: ${leadError.message}`);
+      return;
+    }
+
+    if (leadFiles && leadFiles.length > 0) {
+      for (const file of Array.from(leadFiles)) {
+        const ext = file.name.split(".").pop();
+        const filePath = `owner-leads/${crypto.randomUUID()}.${ext}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("owner-property-images")
+          .upload(filePath, file);
+
+        if (uploadError) {
+          alert(`Erro ao enviar imagem: ${uploadError.message}`);
+          continue;
+        }
+
+        const { data: publicUrlData } = supabase.storage
+          .from("owner-property-images")
+          .getPublicUrl(filePath);
+
+        await supabase.from("owner_lead_images").insert([
+          {
+            owner_lead_id: leadData.id,
+            image_url: publicUrlData.publicUrl,
+          },
+        ]);
+      }
+    }
+
+    const whatsappMessage =
+      `Olá! Acabei de preencher o formulário para anunciar meu flat.\n\n` +
+      `Nome: ${leadName}\n` +
+      `Telefone: ${leadPhone}\n` +
+      `Região: ${leadRegion || "Não informada"}\n` +
+      `Tipo do imóvel: ${leadPropertyType || "Não informado"}\n` +
+      `Mensagem: ${leadMessage || "Sem mensagem"}\n` +
+      `Fotos enviadas: ${leadFiles && leadFiles.length > 0 ? leadFiles.length : 0}`;
+
+    setLeadSuccessMessage("Lead enviado com sucesso.");
+    setLeadName("");
+    setLeadPhone("");
+    setLeadRegion("");
+    setLeadPropertyType("");
+    setLeadMessage("");
+    setLeadFiles(null);
+    loadAll();
+
+    openWhatsApp(whatsappMessage);
   }
 
-  const { error } = await supabase.from("owner_leads").insert([
-    {
-      name: leadName,
-      phone: leadPhone,
-      region: leadRegion || null,
-      property_type: leadPropertyType || null,
-      message: leadMessage || null,
-    },
-  ]);
-
-  if (error) {
-    alert(`Erro ao salvar lead: ${error.message}`);
-    return;
-  }
-
-  const whatsappMessage =
-    `Olá! Acabei de preencher o formulário para anunciar meu flat.%0A%0A` +
-    `Nome: ${leadName}%0A` +
-    `Telefone: ${leadPhone}%0A` +
-    `Região: ${leadRegion || "Não informada"}%0A` +
-    `Tipo do imóvel: ${leadPropertyType || "Não informado"}%0A` +
-    `Mensagem: ${leadMessage || "Sem mensagem"}`;
-
-  setLeadSuccessMessage("Lead enviado com sucesso.");
-  setLeadName("");
-  setLeadPhone("");
-  setLeadRegion("");
-  setLeadPropertyType("");
-  setLeadMessage("");
-  loadAll();
-
-  window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${whatsappMessage}`, "_blank");
-}
   if (auth.loading) {
     return (
       <div style={pageStyle}>
@@ -487,7 +545,10 @@ async function handleCreateOwnerLead() {
                     <button onClick={handleOwnerWhatsApp} style={primaryButton}>
                       Quero anunciar meu flat
                     </button>
-                    <button onClick={() => window.scrollTo({ top: 900, behavior: "smooth" })} style={secondaryButton}>
+                    <button
+                      onClick={() => window.scrollTo({ top: 1300, behavior: "smooth" })}
+                      style={secondaryButton}
+                    >
                       Ver flats publicados
                     </button>
                   </div>
@@ -549,7 +610,9 @@ async function handleCreateOwnerLead() {
               ].map((item) => (
                 <div key={item.title} style={cardStyle}>
                   <h3 style={{ marginTop: 0, fontSize: 26, color: "#111" }}>{item.title}</h3>
-                  <p style={{ margin: 0, color: "#555", lineHeight: 1.7, fontSize: 17 }}>{item.text}</p>
+                  <p style={{ margin: 0, color: "#555", lineHeight: 1.7, fontSize: 17 }}>
+                    {item.text}
+                  </p>
                 </div>
               ))}
             </section>
@@ -619,88 +682,109 @@ async function handleCreateOwnerLead() {
                 </p>
               </div>
             </section>
+
             <section
-  style={{
-    background: "#fff",
-    borderRadius: 28,
-    padding: 32,
-    border: "1px solid #ececec",
-    boxShadow: "0 8px 24px rgba(0,0,0,0.05)",
-    marginBottom: 32,
-  }}
->
-  <h2 style={{ marginTop: 0, fontSize: 34, color: "#111" }}>
-    Quero anunciar meu flat
-  </h2>
-  <p style={{ marginTop: 8, color: "#666", fontSize: 18 }}>
-    Preencha os dados abaixo e nossa equipe entra em contato. Você paga apenas 5% sobre reservas geradas.
-  </p>
+              style={{
+                background: "#fff",
+                borderRadius: 28,
+                padding: 32,
+                border: "1px solid #ececec",
+                boxShadow: "0 8px 24px rgba(0,0,0,0.05)",
+                marginBottom: 32,
+              }}
+            >
+              <h2 style={{ marginTop: 0, fontSize: 34, color: "#111" }}>
+                Quero anunciar meu flat
+              </h2>
+              <p style={{ marginTop: 8, color: "#666", fontSize: 18 }}>
+                Preencha os dados abaixo e nossa equipe entra em contato. Você paga apenas 5% sobre reservas geradas.
+              </p>
 
-  {leadSuccessMessage && (
-    <div
-      style={{
-        marginTop: 16,
-        background: "#ecfdf3",
-        color: "#166534",
-        padding: 14,
-        borderRadius: 14,
-        fontWeight: 700,
-      }}
-    >
-      {leadSuccessMessage}
-    </div>
-  )}
+              {leadSuccessMessage && (
+                <div
+                  style={{
+                    marginTop: 16,
+                    background: "#ecfdf3",
+                    color: "#166534",
+                    padding: 14,
+                    borderRadius: 14,
+                    fontWeight: 700,
+                  }}
+                >
+                  {leadSuccessMessage}
+                </div>
+              )}
 
-  <div
-    style={{
-      display: "grid",
-      gridTemplateColumns: "repeat(2, 1fr)",
-      gap: 14,
-      marginTop: 20,
-    }}
-  >
-    <input
-      value={leadName}
-      onChange={(e) => setLeadName(e.target.value)}
-      placeholder="Seu nome"
-      style={inputStyle}
-    />
-    <input
-      value={leadPhone}
-      onChange={(e) => setLeadPhone(e.target.value)}
-      placeholder="Telefone / WhatsApp"
-      style={inputStyle}
-    />
-    <input
-      value={leadRegion}
-      onChange={(e) => setLeadRegion(e.target.value)}
-      placeholder="Região do flat"
-      style={inputStyle}
-    />
-    <input
-      value={leadPropertyType}
-      onChange={(e) => setLeadPropertyType(e.target.value)}
-      placeholder="Tipo do imóvel"
-      style={inputStyle}
-    />
-  </div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, 1fr)",
+                  gap: 14,
+                  marginTop: 20,
+                }}
+              >
+                <input
+                  value={leadName}
+                  onChange={(e) => setLeadName(e.target.value)}
+                  placeholder="Seu nome"
+                  style={inputStyle}
+                />
+                <input
+                  value={leadPhone}
+                  onChange={(e) => setLeadPhone(e.target.value)}
+                  placeholder="Telefone / WhatsApp"
+                  style={inputStyle}
+                />
+                <input
+                  value={leadRegion}
+                  onChange={(e) => setLeadRegion(e.target.value)}
+                  placeholder="Região do flat"
+                  style={inputStyle}
+                />
+                <input
+                  value={leadPropertyType}
+                  onChange={(e) => setLeadPropertyType(e.target.value)}
+                  placeholder="Tipo do imóvel"
+                  style={inputStyle}
+                />
+              </div>
 
-  <textarea
-    value={leadMessage}
-    onChange={(e) => setLeadMessage(e.target.value)}
-    placeholder="Conte um pouco sobre o imóvel"
-    style={{ ...inputStyle, minHeight: 120, resize: "vertical", marginTop: 14 }}
-  />
+              <textarea
+                value={leadMessage}
+                onChange={(e) => setLeadMessage(e.target.value)}
+                placeholder="Conte um pouco sobre o imóvel"
+                style={{ ...inputStyle, minHeight: 120, resize: "vertical", marginTop: 14 }}
+              />
 
-  <div style={{ marginTop: 16, display: "flex", gap: 12, flexWrap: "wrap" }}>
-    <button onClick={handleCreateOwnerLead} style={primaryButton}>
-      Enviar e anunciar meu flat
-    </button>
-    <button onClick={handleOwnerWhatsApp} style={greenButton}>
-      Falar no WhatsApp
-    </button>
-  </div>
-</section>
+              <div style={{ marginTop: 14 }}>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: 8,
+                    color: "#444",
+                    fontWeight: 600,
+                  }}
+                >
+                  Fotos do imóvel
+                </label>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={(e) => setLeadFiles(e.target.files)}
+                  style={inputStyle}
+                />
+              </div>
+
+              <div style={{ marginTop: 16, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <button onClick={handleCreateOwnerLead} style={primaryButton}>
+                  Enviar e anunciar meu flat
+                </button>
+                <button onClick={handleOwnerWhatsApp} style={greenButton}>
+                  Falar no WhatsApp
+                </button>
+              </div>
+            </section>
 
             <section style={{ marginBottom: 28 }}>
               <h2 style={{ margin: 0, fontSize: 30, color: "#111" }}>
@@ -1010,43 +1094,9 @@ async function handleCreateOwnerLead() {
             <div>
               <h2 style={{ margin: 0, fontSize: 34, color: "#111" }}>Painel Admin</h2>
               <p style={{ marginTop: 8, color: "#666", fontSize: 18 }}>
-                Cadastre imóveis e acompanhe as reservas recebidas.
+                Cadastre imóveis e acompanhe as reservas e leads recebidos.
               </p>
             </div>
-            <div style={cardStyle}>
-  <h3 style={{ marginTop: 0, fontSize: 28, color: "#111" }}>
-    Leads de proprietários
-  </h3>
-
-  <div style={{ display: "grid", gap: 14 }}>
-    {ownerLeads.length === 0 && (
-      <p style={{ color: "#666" }}>Nenhum lead recebido ainda.</p>
-    )}
-
-    {ownerLeads.map((lead) => (
-      <div
-        key={lead.id}
-        style={{
-          border: "1px solid #ececec",
-          borderRadius: 16,
-          padding: 16,
-        }}
-      >
-        <strong style={{ fontSize: 20 }}>{lead.name}</strong>
-        <p style={{ margin: "8px 0 0", color: "#666" }}>{lead.phone}</p>
-        <p style={{ margin: "8px 0 0", color: "#666" }}>
-          Região: {lead.region || "Não informada"}
-        </p>
-        <p style={{ margin: "8px 0 0", color: "#666" }}>
-          Tipo: {lead.property_type || "Não informado"}
-        </p>
-        <p style={{ margin: "8px 0 0", color: "#111" }}>
-          {lead.message || "Sem mensagem"}
-        </p>
-      </div>
-    ))}
-  </div>
-</div>
 
             <div
               style={{
@@ -1148,6 +1198,60 @@ async function handleCreateOwnerLead() {
                         <p style={{ margin: "8px 0 0", color: "#111", fontWeight: 700 }}>
                           Total: R$ {r.total_amount}
                         </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={cardStyle}>
+                  <h3 style={{ marginTop: 0, fontSize: 28, color: "#111" }}>
+                    Leads de proprietários
+                  </h3>
+
+                  <div style={{ display: "grid", gap: 14 }}>
+                    {ownerLeads.length === 0 && (
+                      <p style={{ color: "#666" }}>Nenhum lead recebido ainda.</p>
+                    )}
+
+                    {ownerLeads.map((lead) => (
+                      <div
+                        key={lead.id}
+                        style={{
+                          border: "1px solid #ececec",
+                          borderRadius: 16,
+                          padding: 16,
+                        }}
+                      >
+                        <strong style={{ fontSize: 20 }}>{lead.name}</strong>
+                        <p style={{ margin: "8px 0 0", color: "#666" }}>{lead.phone}</p>
+                        <p style={{ margin: "8px 0 0", color: "#666" }}>
+                          Região: {lead.region || "Não informada"}
+                        </p>
+                        <p style={{ margin: "8px 0 0", color: "#666" }}>
+                          Tipo: {lead.property_type || "Não informado"}
+                        </p>
+                        <p style={{ margin: "8px 0 0", color: "#111" }}>
+                          {lead.message || "Sem mensagem"}
+                        </p>
+
+                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+                          {ownerLeadImages
+                            .filter((img) => img.owner_lead_id === lead.id)
+                            .map((img) => (
+                              <img
+                                key={img.id}
+                                src={img.image_url}
+                                alt="Imóvel enviado"
+                                style={{
+                                  width: 110,
+                                  height: 80,
+                                  objectFit: "cover",
+                                  borderRadius: 12,
+                                  border: "1px solid #ececec",
+                                }}
+                              />
+                            ))}
+                        </div>
                       </div>
                     ))}
                   </div>
