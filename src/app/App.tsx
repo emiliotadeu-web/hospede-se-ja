@@ -28,7 +28,7 @@ type Reservation = {
 
 type ViewMode = "list" | "details" | "admin";
 
-const WHATSAPP_NUMBER = "5561999999999";
+const WHATSAPP_NUMBER = "5561981239357";
 
 export default function App() {
   const auth = useAuth();
