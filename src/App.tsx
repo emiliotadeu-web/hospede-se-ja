@@ -1,4 +1,4 @@
- import { useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import { supabase } from "./lib/supabase"
 
 type Property = {
@@ -9,12 +9,27 @@ type Property = {
   nightly_rate: number
   image_url?: string | null
   description?: string | null
+  status?: string
 }
 
-type ViewMode = "list" | "details"
+type Reservation = {
+  id: string
+  property_id: string
+  guest_name: string
+  email?: string | null
+  phone?: string | null
+  check_in: string
+  check_out: string
+  guests?: number
+  status?: string
+  total_amount?: number
+}
+
+type ViewMode = "list" | "details" | "admin"
 
 export default function App() {
   const [properties, setProperties] = useState<Property[]>([])
+  const [reservations, setReservations] = useState<Reservation[]>([])
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState<ViewMode>("list")
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null)
@@ -27,21 +42,34 @@ export default function App() {
   const [guests, setGuests] = useState(1)
   const [successMessage, setSuccessMessage] = useState("")
 
+  const [title, setTitle] = useState("")
+  const [region, setRegion] = useState("")
+  const [address, setAddress] = useState("")
+  const [nightlyRate, setNightlyRate] = useState("")
+  const [imageUrl, setImageUrl] = useState("")
+  const [description, setDescription] = useState("")
+  const [adminMessage, setAdminMessage] = useState("")
+
   useEffect(() => {
-    loadProperties()
+    loadAll()
   }, [])
 
-  async function loadProperties() {
-    const { data, error } = await supabase
+  async function loadAll() {
+    setLoading(true)
+
+    const { data: propertyData } = await supabase
       .from("properties")
       .select("*")
       .eq("status", "published")
       .order("created_at", { ascending: false })
 
-    if (!error) {
-      setProperties((data as Property[]) || [])
-    }
+    const { data: reservationData } = await supabase
+      .from("reservations")
+      .select("*")
+      .order("created_at", { ascending: false })
 
+    setProperties((propertyData as Property[]) || [])
+    setReservations((reservationData as Reservation[]) || [])
     setLoading(false)
   }
 
@@ -51,7 +79,7 @@ export default function App() {
     setSuccessMessage("")
   }
 
-  function goBack() {
+  function goToList() {
     setView("list")
     setSelectedProperty(null)
     setSuccessMessage("")
@@ -91,7 +119,7 @@ export default function App() {
     ])
 
     if (error) {
-      alert("Erro ao criar reserva.")
+      alert(`Erro ao criar reserva: ${error.message}`)
       return
     }
 
@@ -102,6 +130,44 @@ export default function App() {
     setCheckIn("")
     setCheckOut("")
     setGuests(1)
+    loadAll()
+  }
+
+  async function handleCreateProperty() {
+    if (!title || !region || !address || !nightlyRate) {
+      alert("Preencha título, região, endereço e diária.")
+      return
+    }
+
+    const { error } = await supabase.from("properties").insert([
+      {
+        title,
+        region,
+        address,
+        nightly_rate: Number(nightlyRate),
+        cleaning_fee: 0,
+        guests: 2,
+        bedrooms: 1,
+        bathrooms: 1,
+        status: "published",
+        image_url: imageUrl || null,
+        description: description || null,
+      },
+    ])
+
+    if (error) {
+      alert(`Erro ao cadastrar imóvel: ${error.message}`)
+      return
+    }
+
+    setAdminMessage("Imóvel cadastrado com sucesso.")
+    setTitle("")
+    setRegion("")
+    setAddress("")
+    setNightlyRate("")
+    setImageUrl("")
+    setDescription("")
+    loadAll()
   }
 
   return (
@@ -133,7 +199,7 @@ export default function App() {
           }}
         >
           <div
-            onClick={goBack}
+            onClick={goToList}
             style={{
               display: "flex",
               alignItems: "center",
@@ -159,19 +225,20 @@ export default function App() {
             </div>
           </div>
 
-          <button
-            style={{
-              background: "#ff385c",
-              color: "#fff",
-              border: "none",
-              borderRadius: 999,
-              padding: "12px 20px",
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
-          >
-            Cadastre seu flat
-          </button>
+          <div style={{ display: "flex", gap: 12 }}>
+            <button
+              onClick={goToList}
+              style={secondaryButton}
+            >
+              Vitrine
+            </button>
+            <button
+              onClick={() => setView("admin")}
+              style={primaryButton}
+            >
+              Admin
+            </button>
+          </div>
         </div>
       </header>
 
@@ -264,22 +331,10 @@ export default function App() {
                       }}
                     >
                       <div>
-                        <h3
-                          style={{
-                            margin: 0,
-                            fontSize: 28,
-                            color: "#222",
-                          }}
-                        >
+                        <h3 style={{ margin: 0, fontSize: 28, color: "#222" }}>
                           {p.title}
                         </h3>
-                        <p
-                          style={{
-                            margin: "8px 0 0",
-                            color: "#666",
-                            fontSize: 16,
-                          }}
-                        >
+                        <p style={{ margin: "8px 0 0", color: "#666", fontSize: 16 }}>
                           {p.region}
                         </p>
                       </div>
@@ -299,13 +354,7 @@ export default function App() {
                       </span>
                     </div>
 
-                    <p
-                      style={{
-                        margin: "14px 0 0",
-                        color: "#666",
-                        fontSize: 17,
-                      }}
-                    >
+                    <p style={{ margin: "14px 0 0", color: "#666", fontSize: 17 }}>
                       {p.address}
                     </p>
 
@@ -318,40 +367,20 @@ export default function App() {
                       }}
                     >
                       R$ {p.nightly_rate}{" "}
-                      <span style={{ fontSize: 18, fontWeight: 400 }}>
-                        / noite
-                      </span>
+                      <span style={{ fontSize: 18, fontWeight: 400 }}>/ noite</span>
                     </p>
 
                     <div style={{ marginTop: 18, display: "flex", gap: 12 }}>
                       <button
                         onClick={() => openDetails(p)}
-                        style={{
-                          flex: 1,
-                          background: "#ff385c",
-                          color: "#fff",
-                          border: "none",
-                          borderRadius: 14,
-                          padding: "14px 16px",
-                          fontWeight: 700,
-                          cursor: "pointer",
-                        }}
+                        style={primaryWideButton}
                       >
                         Reservar
                       </button>
 
                       <button
                         onClick={() => openDetails(p)}
-                        style={{
-                          flex: 1,
-                          background: "#fff",
-                          color: "#222",
-                          border: "1px solid #ddd",
-                          borderRadius: 14,
-                          padding: "14px 16px",
-                          fontWeight: 700,
-                          cursor: "pointer",
-                        }}
+                        style={secondaryWideButton}
                       >
                         Ver detalhes
                       </button>
@@ -372,23 +401,13 @@ export default function App() {
             }}
           >
             <div>
-              <button
-                onClick={goBack}
-                style={{
-                  marginBottom: 20,
-                  background: "#fff",
-                  border: "1px solid #ddd",
-                  borderRadius: 12,
-                  padding: "10px 16px",
-                  cursor: "pointer",
-                  fontWeight: 700,
-                }}
-              >
+              <button onClick={goToList} style={secondaryButton}>
                 ← Voltar
               </button>
 
               <div
                 style={{
+                  marginTop: 20,
                   background: "#fff",
                   borderRadius: 24,
                   overflow: "hidden",
@@ -446,9 +465,7 @@ export default function App() {
                     }}
                   >
                     R$ {selectedProperty.nightly_rate}{" "}
-                    <span style={{ fontSize: 20, fontWeight: 400 }}>
-                      / noite
-                    </span>
+                    <span style={{ fontSize: 20, fontWeight: 400 }}>/ noite</span>
                   </p>
 
                   <p
@@ -502,67 +519,157 @@ export default function App() {
                 )}
 
                 <div style={{ marginTop: 18, display: "grid", gap: 12 }}>
-                  <input
-                    value={guestName}
-                    onChange={(e) => setGuestName(e.target.value)}
-                    placeholder="Nome completo"
-                    style={inputStyle}
-                  />
-
-                  <input
-                    value={guestEmail}
-                    onChange={(e) => setGuestEmail(e.target.value)}
-                    placeholder="E-mail"
-                    style={inputStyle}
-                  />
-
-                  <input
-                    value={guestPhone}
-                    onChange={(e) => setGuestPhone(e.target.value)}
-                    placeholder="Telefone / WhatsApp"
-                    style={inputStyle}
-                  />
+                  <input value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="Nome completo" style={inputStyle} />
+                  <input value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} placeholder="E-mail" style={inputStyle} />
+                  <input value={guestPhone} onChange={(e) => setGuestPhone(e.target.value)} placeholder="Telefone / WhatsApp" style={inputStyle} />
 
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    <input
-                      type="date"
-                      value={checkIn}
-                      onChange={(e) => setCheckIn(e.target.value)}
-                      style={inputStyle}
-                    />
-                    <input
-                      type="date"
-                      value={checkOut}
-                      onChange={(e) => setCheckOut(e.target.value)}
-                      style={inputStyle}
-                    />
+                    <input type="date" value={checkIn} onChange={(e) => setCheckIn(e.target.value)} style={inputStyle} />
+                    <input type="date" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} style={inputStyle} />
                   </div>
 
-                  <input
-                    type="number"
-                    min={1}
-                    value={guests}
-                    onChange={(e) => setGuests(Number(e.target.value))}
-                    placeholder="Hóspedes"
-                    style={inputStyle}
-                  />
+                  <input type="number" min={1} value={guests} onChange={(e) => setGuests(Number(e.target.value))} placeholder="Hóspedes" style={inputStyle} />
 
-                  <button
-                    onClick={handleReserve}
-                    style={{
-                      marginTop: 8,
-                      background: "#ff385c",
-                      color: "#fff",
-                      border: "none",
-                      borderRadius: 14,
-                      padding: "16px 18px",
-                      fontWeight: 700,
-                      fontSize: 16,
-                      cursor: "pointer",
-                    }}
-                  >
+                  <button onClick={handleReserve} style={primaryWideButton}>
                     Enviar reserva
                   </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {view === "admin" && (
+          <div style={{ display: "grid", gap: 28 }}>
+            <div>
+              <h2 style={{ margin: 0, fontSize: 34, color: "#111" }}>Painel Admin</h2>
+              <p style={{ marginTop: 8, color: "#666", fontSize: 18 }}>
+                Cadastre imóveis e acompanhe as reservas recebidas.
+              </p>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "0.9fr 1.1fr",
+                gap: 24,
+              }}
+            >
+              <div
+                style={{
+                  background: "#fff",
+                  borderRadius: 24,
+                  border: "1px solid #ececec",
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
+                  padding: 24,
+                }}
+              >
+                <h3 style={{ marginTop: 0, fontSize: 28, color: "#111" }}>
+                  Cadastrar imóvel
+                </h3>
+
+                {adminMessage && (
+                  <div
+                    style={{
+                      marginBottom: 16,
+                      background: "#ecfdf3",
+                      color: "#166534",
+                      padding: 14,
+                      borderRadius: 14,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {adminMessage}
+                  </div>
+                )}
+
+                <div style={{ display: "grid", gap: 12 }}>
+                  <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Título do imóvel" style={inputStyle} />
+                  <input value={region} onChange={(e) => setRegion(e.target.value)} placeholder="Região" style={inputStyle} />
+                  <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Endereço" style={inputStyle} />
+                  <input value={nightlyRate} onChange={(e) => setNightlyRate(e.target.value)} placeholder="Diária" style={inputStyle} />
+                  <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="URL da imagem" style={inputStyle} />
+                  <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descrição" style={{ ...inputStyle, minHeight: 120, resize: "vertical" }} />
+
+                  <button onClick={handleCreateProperty} style={primaryWideButton}>
+                    Salvar imóvel
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gap: 24 }}>
+                <div
+                  style={{
+                    background: "#fff",
+                    borderRadius: 24,
+                    border: "1px solid #ececec",
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
+                    padding: 24,
+                  }}
+                >
+                  <h3 style={{ marginTop: 0, fontSize: 28, color: "#111" }}>
+                    Imóveis cadastrados
+                  </h3>
+
+                  <div style={{ display: "grid", gap: 14 }}>
+                    {properties.map((p) => (
+                      <div
+                        key={p.id}
+                        style={{
+                          border: "1px solid #ececec",
+                          borderRadius: 16,
+                          padding: 16,
+                        }}
+                      >
+                        <strong style={{ fontSize: 20 }}>{p.title}</strong>
+                        <p style={{ margin: "8px 0 0", color: "#666" }}>{p.address}</p>
+                        <p style={{ margin: "8px 0 0", color: "#111", fontWeight: 700 }}>
+                          R$ {p.nightly_rate} / noite
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    background: "#fff",
+                    borderRadius: 24,
+                    border: "1px solid #ececec",
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
+                    padding: 24,
+                  }}
+                >
+                  <h3 style={{ marginTop: 0, fontSize: 28, color: "#111" }}>
+                    Reservas recebidas
+                  </h3>
+
+                  <div style={{ display: "grid", gap: 14 }}>
+                    {reservations.length === 0 && (
+                      <p style={{ color: "#666" }}>Nenhuma reserva recebida ainda.</p>
+                    )}
+
+                    {reservations.map((r) => (
+                      <div
+                        key={r.id}
+                        style={{
+                          border: "1px solid #ececec",
+                          borderRadius: 16,
+                          padding: 16,
+                        }}
+                      >
+                        <strong style={{ fontSize: 20 }}>{r.guest_name}</strong>
+                        <p style={{ margin: "8px 0 0", color: "#666" }}>{r.email}</p>
+                        <p style={{ margin: "8px 0 0", color: "#666" }}>{r.phone}</p>
+                        <p style={{ margin: "8px 0 0", color: "#111" }}>
+                          {r.check_in} até {r.check_out}
+                        </p>
+                        <p style={{ margin: "8px 0 0", color: "#111", fontWeight: 700 }}>
+                          Total: R$ {r.total_amount}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -581,4 +688,46 @@ const inputStyle: React.CSSProperties = {
   fontSize: 16,
   outline: "none",
   boxSizing: "border-box",
+}
+
+const primaryButton: React.CSSProperties = {
+  background: "#ff385c",
+  color: "#fff",
+  border: "none",
+  borderRadius: 999,
+  padding: "12px 20px",
+  fontWeight: 700,
+  cursor: "pointer",
+}
+
+const secondaryButton: React.CSSProperties = {
+  background: "#fff",
+  color: "#222",
+  border: "1px solid #ddd",
+  borderRadius: 14,
+  padding: "12px 20px",
+  fontWeight: 700,
+  cursor: "pointer",
+}
+
+const primaryWideButton: React.CSSProperties = {
+  flex: 1,
+  background: "#ff385c",
+  color: "#fff",
+  border: "none",
+  borderRadius: 14,
+  padding: "14px 16px",
+  fontWeight: 700,
+  cursor: "pointer",
+}
+
+const secondaryWideButton: React.CSSProperties = {
+  flex: 1,
+  background: "#fff",
+  color: "#222",
+  border: "1px solid #ddd",
+  borderRadius: 14,
+  padding: "14px 16px",
+  fontWeight: 700,
+  cursor: "pointer",
 }
