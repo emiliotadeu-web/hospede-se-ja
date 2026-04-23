@@ -23,6 +23,7 @@ type Reservation = {
   check_out: string;
   guests?: number;
   status?: string;
+  financial_status?: string;
   total_amount?: number;
 };
 
@@ -218,6 +219,7 @@ export default function App() {
         check_out: checkOut,
         guests,
         status: "pending",
+        financial_status: "pendente",
         total_amount: totalAmount,
       },
     ]);
@@ -377,23 +379,46 @@ export default function App() {
     loadAll();
   }
 
+  async function handleUpdateReservationFinancialStatus(
+    id: string,
+    financialStatus: string
+  ) {
+    const { error } = await supabase
+      .from("reservations")
+      .update({ financial_status: financialStatus })
+      .eq("id", id);
+
+    if (error) {
+      alert(`Erro ao atualizar status financeiro: ${error.message}`);
+      return;
+    }
+
+    loadAll();
+  }
+
   const filteredOwnerLeads =
     leadFilter === "todos"
       ? ownerLeads
       : ownerLeads.filter((lead) => lead.status === leadFilter);
 
-  const totalReservationsAmount = reservations.reduce(
+  const financialReservations = reservations.filter((reservation) =>
+    ["confirmada", "paga_ao_proprietario"].includes(
+      reservation.financial_status || "pendente"
+    )
+  );
+
+  const totalReservationsAmount = financialReservations.reduce(
     (sum, reservation) => sum + Number(reservation.total_amount || 0),
     0
   );
 
-  const totalPlatformFee = reservations.reduce(
+  const totalPlatformFee = financialReservations.reduce(
     (sum, reservation) =>
       sum + Number(reservation.total_amount || 0) * PLATFORM_FEE_PERCENT,
     0
   );
 
-  const totalOwnerNet = reservations.reduce(
+  const totalOwnerNet = financialReservations.reduce(
     (sum, reservation) =>
       sum + Number(reservation.total_amount || 0) * (1 - PLATFORM_FEE_PERCENT),
     0
@@ -1274,13 +1299,33 @@ export default function App() {
                           Total da reserva: R$ {Number(r.total_amount || 0).toFixed(2)}
                         </p>
                         <p style={{ margin: "8px 0 0", color: "#666" }}>
-                          Comissão da plataforma (10%): R${" "}
-                          {(Number(r.total_amount || 0) * PLATFORM_FEE_PERCENT).toFixed(2)}
+                          Comissão da plataforma (10%): R$ {(Number(r.total_amount || 0) * PLATFORM_FEE_PERCENT).toFixed(2)}
                         </p>
                         <p style={{ margin: "8px 0 0", color: "#666" }}>
-                          Líquido do proprietário: R${" "}
-                          {(Number(r.total_amount || 0) * (1 - PLATFORM_FEE_PERCENT)).toFixed(2)}
+                          Líquido do proprietário: R$ {(Number(r.total_amount || 0) * (1 - PLATFORM_FEE_PERCENT)).toFixed(2)}
                         </p>
+
+                        <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+                          <label style={{ color: "#444", fontWeight: 600 }}>
+                            Status financeiro
+                          </label>
+
+                          <select
+                            value={r.financial_status || "pendente"}
+                            onChange={(e) =>
+                              handleUpdateReservationFinancialStatus(r.id, e.target.value)
+                            }
+                            style={{
+                              ...inputStyle,
+                              padding: "10px 14px",
+                            }}
+                          >
+                            <option value="pendente">Pendente</option>
+                            <option value="confirmada">Confirmada</option>
+                            <option value="cancelada">Cancelada</option>
+                            <option value="paga_ao_proprietario">Paga ao proprietário</option>
+                          </select>
+                        </div>
                       </div>
                     ))}
                   </div>
