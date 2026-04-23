@@ -93,23 +93,21 @@ export default function App() {
   }
 
   async function handleLogin() {
-    setLoginMessage("");
+  setLoginMessage("");
 
-    if (!loginEmail || !loginPassword) {
-      setLoginMessage("Preencha e-mail e senha.");
-      return;
-    }
+  if (!loginEmail || !loginPassword) {
+    setLoginMessage("Preencha e-mail e senha.");
+    return;
+  }
 
-    const { error } = await auth.signIn(loginEmail, loginPassword);
-
-    if (error) {
-      setLoginMessage(error.message);
-      return;
-    }
-
+  try {
+    await auth.signIn(loginEmail, loginPassword);
     setLoginEmail("");
     setLoginPassword("");
+  } catch (error: any) {
+    setLoginMessage(error.message || "Erro ao fazer login.");
   }
+} 
 
   async function handleLogout() {
     await auth.signOut();
