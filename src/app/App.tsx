@@ -48,6 +48,7 @@ type OwnerLeadImage = {
 type ViewMode = "list" | "details" | "admin";
 
 const WHATSAPP_NUMBER = "5561999999999";
+const PLATFORM_FEE_PERCENT = 0.1;
 
 export default function App() {
   const auth = useAuth();
@@ -150,7 +151,7 @@ export default function App() {
 
   function handleOwnerWhatsApp() {
     const message =
-      "Olá! Quero anunciar meu flat na Hospede-se Já e entender como funciona a plataforma com taxa de 5% sobre reservas geradas.";
+      "Olá! Quero anunciar meu flat na Hospede-se Já e entender como funciona a plataforma com taxa de 10% sobre reservas geradas.";
     openWhatsApp(message);
   }
 
@@ -381,6 +382,23 @@ export default function App() {
       ? ownerLeads
       : ownerLeads.filter((lead) => lead.status === leadFilter);
 
+  const totalReservationsAmount = reservations.reduce(
+    (sum, reservation) => sum + Number(reservation.total_amount || 0),
+    0
+  );
+
+  const totalPlatformFee = reservations.reduce(
+    (sum, reservation) =>
+      sum + Number(reservation.total_amount || 0) * PLATFORM_FEE_PERCENT,
+    0
+  );
+
+  const totalOwnerNet = reservations.reduce(
+    (sum, reservation) =>
+      sum + Number(reservation.total_amount || 0) * (1 - PLATFORM_FEE_PERCENT),
+    0
+  );
+
   if (auth.loading) {
     return (
       <div style={pageStyle}>
@@ -542,7 +560,7 @@ export default function App() {
                       marginBottom: 18,
                     }}
                   >
-                    Plataforma com taxa de 5%
+                    Plataforma com taxa de 10%
                   </div>
 
                   <h2
@@ -553,7 +571,7 @@ export default function App() {
                       color: "#111",
                     }}
                   >
-                    Anuncie seu flat em Brasília e pague apenas 5% sobre reservas geradas
+                    Anuncie seu flat em Brasília e pague apenas 10% sobre reservas geradas
                   </h2>
 
                   <p
@@ -593,7 +611,7 @@ export default function App() {
                       "2. Nós publicamos na plataforma",
                       "3. Recebemos pedidos de reserva",
                       "4. Você aprova e hospeda",
-                      "5. Cobramos apenas 5% do aluguel gerado",
+                      "5. Cobramos apenas 10% do aluguel gerado",
                     ].map((item) => (
                       <div
                         key={item}
@@ -669,7 +687,7 @@ export default function App() {
               >
                 {[
                   "Mais visibilidade para flats em Brasília",
-                  "Modelo simples: só paga 5% sobre o que gerar",
+                  "Modelo simples: só paga 10% sobre o que gerar",
                   "Sem custo antecipado",
                   "Captação de hóspedes pela plataforma e WhatsApp",
                   "Entrada mais fácil para proprietários",
@@ -705,7 +723,7 @@ export default function App() {
                   Transparência total da taxa
                 </h3>
                 <p style={{ margin: 0, color: "#444", fontSize: 18, lineHeight: 1.7 }}>
-                  Você paga apenas <strong>5%</strong> sobre reservas confirmadas geradas pela plataforma.
+                  Você paga apenas <strong>10%</strong> sobre reservas confirmadas geradas pela plataforma.
                   Se não tiver reserva, você não paga nada.
                 </p>
               </div>
@@ -725,7 +743,7 @@ export default function App() {
                 Quero anunciar meu flat
               </h2>
               <p style={{ marginTop: 8, color: "#666", fontSize: 18 }}>
-                Preencha os dados abaixo e nossa equipe entra em contato. Você paga apenas 5% sobre reservas geradas.
+                Preencha os dados abaixo e nossa equipe entra em contato. Você paga apenas 10% sobre reservas geradas.
               </p>
 
               {leadSuccessMessage && (
@@ -951,7 +969,7 @@ export default function App() {
                 Tem um flat em Brasília?
               </h2>
               <p style={{ fontSize: 20, color: "rgba(255,255,255,0.85)", lineHeight: 1.7 }}>
-                Publique com a Hospede-se Já e pague apenas 5% sobre o que for gerado em aluguel.
+                Publique com a Hospede-se Já e pague apenas 10% sobre o que for gerado em aluguel.
                 Sem taxa fixa, sem mensalidade e sem custo antecipado.
               </p>
               <div style={{ marginTop: 20, display: "flex", gap: 14, flexWrap: "wrap" }}>
@@ -1129,6 +1147,35 @@ export default function App() {
             <div
               style={{
                 display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: 18,
+              }}
+            >
+              <div style={cardStyle}>
+                <p style={{ margin: 0, color: "#666", fontSize: 16 }}>Total gerado</p>
+                <h3 style={{ margin: "10px 0 0", fontSize: 32, color: "#111" }}>
+                  R$ {totalReservationsAmount.toFixed(2)}
+                </h3>
+              </div>
+
+              <div style={cardStyle}>
+                <p style={{ margin: 0, color: "#666", fontSize: 16 }}>Sua comissão (10%)</p>
+                <h3 style={{ margin: "10px 0 0", fontSize: 32, color: "#111" }}>
+                  R$ {totalPlatformFee.toFixed(2)}
+                </h3>
+              </div>
+
+              <div style={cardStyle}>
+                <p style={{ margin: 0, color: "#666", fontSize: 16 }}>Líquido do proprietário</p>
+                <h3 style={{ margin: "10px 0 0", fontSize: 32, color: "#111" }}>
+                  R$ {totalOwnerNet.toFixed(2)}
+                </h3>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
                 gridTemplateColumns: "0.9fr 1.1fr",
                 gap: 24,
               }}
@@ -1224,7 +1271,15 @@ export default function App() {
                           {r.check_in} até {r.check_out}
                         </p>
                         <p style={{ margin: "8px 0 0", color: "#111", fontWeight: 700 }}>
-                          Total: R$ {r.total_amount}
+                          Total da reserva: R$ {Number(r.total_amount || 0).toFixed(2)}
+                        </p>
+                        <p style={{ margin: "8px 0 0", color: "#666" }}>
+                          Comissão da plataforma (10%): R${" "}
+                          {(Number(r.total_amount || 0) * PLATFORM_FEE_PERCENT).toFixed(2)}
+                        </p>
+                        <p style={{ margin: "8px 0 0", color: "#666" }}>
+                          Líquido do proprietário: R${" "}
+                          {(Number(r.total_amount || 0) * (1 - PLATFORM_FEE_PERCENT)).toFixed(2)}
                         </p>
                       </div>
                     ))}
