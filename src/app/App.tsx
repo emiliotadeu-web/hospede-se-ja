@@ -33,6 +33,8 @@ type OwnerLead = {
   region?: string | null;
   property_type?: string | null;
   message?: string | null;
+  status?: string | null;
+  notes?: string | null;
   created_at?: string;
 };
 
@@ -45,7 +47,7 @@ type OwnerLeadImage = {
 
 type ViewMode = "list" | "details" | "admin";
 
-const WHATSAPP_NUMBER = "5561981239357";
+const WHATSAPP_NUMBER = "5561999999999";
 
 export default function App() {
   const auth = useAuth();
@@ -85,6 +87,9 @@ export default function App() {
   const [leadMessage, setLeadMessage] = useState("");
   const [leadSuccessMessage, setLeadSuccessMessage] = useState("");
   const [leadFiles, setLeadFiles] = useState<FileList | null>(null);
+
+  const [leadFilter, setLeadFilter] = useState("todos");
+  const [leadUpdateMessage, setLeadUpdateMessage] = useState("");
 
   useEffect(() => {
     loadAll();
@@ -135,6 +140,7 @@ export default function App() {
     setView("list");
     setSelectedProperty(null);
     setSuccessMessage("");
+    setLeadUpdateMessage("");
   }
 
   function openWhatsApp(message: string) {
@@ -295,6 +301,8 @@ export default function App() {
           region: leadRegion || null,
           property_type: leadPropertyType || null,
           message: leadMessage || null,
+          status: "novo",
+          notes: null,
         },
       ])
       .select()
@@ -352,6 +360,26 @@ export default function App() {
 
     openWhatsApp(whatsappMessage);
   }
+
+  async function handleUpdateLead(
+    id: string,
+    updates: { status?: string; notes?: string }
+  ) {
+    const { error } = await supabase.from("owner_leads").update(updates).eq("id", id);
+
+    if (error) {
+      alert(`Erro ao atualizar lead: ${error.message}`);
+      return;
+    }
+
+    setLeadUpdateMessage("Lead atualizado com sucesso.");
+    loadAll();
+  }
+
+  const filteredOwnerLeads =
+    leadFilter === "todos"
+      ? ownerLeads
+      : ownerLeads.filter((lead) => lead.status === leadFilter);
 
   if (auth.loading) {
     return (
@@ -1204,55 +1232,65 @@ export default function App() {
                 </div>
 
                 <div style={cardStyle}>
-                  <h3 style={{ marginTop: 0, fontSize: 28, color: "#111" }}>
-                    Leads de proprietários
-                  </h3>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: 12,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <h3 style={{ marginTop: 0, fontSize: 28, color: "#111", marginBottom: 0 }}>
+                      Leads de proprietários
+                    </h3>
 
-                  <div style={{ display: "grid", gap: 14 }}>
-                    {ownerLeads.length === 0 && (
-                      <p style={{ color: "#666" }}>Nenhum lead recebido ainda.</p>
+                    <select
+                      value={leadFilter}
+                      onChange={(e) => setLeadFilter(e.target.value)}
+                      style={{
+                        ...inputStyle,
+                        width: 220,
+                        padding: "10px 14px",
+                      }}
+                    >
+                      <option value="todos">Todos</option>
+                      <option value="novo">Novo</option>
+                      <option value="contato_feito">Contato feito</option>
+                      <option value="visita_agendada">Visita agendada</option>
+                      <option value="aguardando_documentos">Aguardando documentos</option>
+                      <option value="publicado">Publicado</option>
+                      <option value="perdido">Perdido</option>
+                    </select>
+                  </div>
+
+                  {leadUpdateMessage && (
+                    <div
+                      style={{
+                        marginTop: 16,
+                        background: "#ecfdf3",
+                        color: "#166534",
+                        padding: 14,
+                        borderRadius: 14,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {leadUpdateMessage}
+                    </div>
+                  )}
+
+                  <div style={{ display: "grid", gap: 14, marginTop: 18 }}>
+                    {filteredOwnerLeads.length === 0 && (
+                      <p style={{ color: "#666" }}>Nenhum lead encontrado nesse estágio.</p>
                     )}
 
-                    {ownerLeads.map((lead) => (
-                      <div
+                    {filteredOwnerLeads.map((lead) => (
+                      <LeadCard
                         key={lead.id}
-                        style={{
-                          border: "1px solid #ececec",
-                          borderRadius: 16,
-                          padding: 16,
-                        }}
-                      >
-                        <strong style={{ fontSize: 20 }}>{lead.name}</strong>
-                        <p style={{ margin: "8px 0 0", color: "#666" }}>{lead.phone}</p>
-                        <p style={{ margin: "8px 0 0", color: "#666" }}>
-                          Região: {lead.region || "Não informada"}
-                        </p>
-                        <p style={{ margin: "8px 0 0", color: "#666" }}>
-                          Tipo: {lead.property_type || "Não informado"}
-                        </p>
-                        <p style={{ margin: "8px 0 0", color: "#111" }}>
-                          {lead.message || "Sem mensagem"}
-                        </p>
-
-                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
-                          {ownerLeadImages
-                            .filter((img) => img.owner_lead_id === lead.id)
-                            .map((img) => (
-                              <img
-                                key={img.id}
-                                src={img.image_url}
-                                alt="Imóvel enviado"
-                                style={{
-                                  width: 110,
-                                  height: 80,
-                                  objectFit: "cover",
-                                  borderRadius: 12,
-                                  border: "1px solid #ececec",
-                                }}
-                              />
-                            ))}
-                        </div>
-                      </div>
+                        lead={lead}
+                        images={ownerLeadImages.filter((img) => img.owner_lead_id === lead.id)}
+                        onUpdate={handleUpdateLead}
+                      />
                     ))}
                   </div>
                 </div>
@@ -1281,6 +1319,123 @@ export default function App() {
       >
         WhatsApp
       </a>
+    </div>
+  );
+}
+
+function LeadCard({
+  lead,
+  images,
+  onUpdate,
+}: {
+  lead: OwnerLead;
+  images: OwnerLeadImage[];
+  onUpdate: (id: string, updates: { status?: string; notes?: string }) => void;
+}) {
+  const [notesValue, setNotesValue] = useState(lead.notes || "");
+  const [statusValue, setStatusValue] = useState(lead.status || "novo");
+
+  return (
+    <div
+      style={{
+        border: "1px solid #ececec",
+        borderRadius: 16,
+        padding: 16,
+        background: "#fff",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 12,
+          alignItems: "start",
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <strong style={{ fontSize: 20 }}>{lead.name}</strong>
+          <p style={{ margin: "8px 0 0", color: "#666" }}>{lead.phone}</p>
+          <p style={{ margin: "8px 0 0", color: "#666" }}>
+            Região: {lead.region || "Não informada"}
+          </p>
+          <p style={{ margin: "8px 0 0", color: "#666" }}>
+            Tipo: {lead.property_type || "Não informado"}
+          </p>
+          <p style={{ margin: "8px 0 0", color: "#111" }}>
+            {lead.message || "Sem mensagem"}
+          </p>
+        </div>
+
+        <div
+          style={{
+            minWidth: 220,
+            display: "grid",
+            gap: 10,
+          }}
+        >
+          <select
+            value={statusValue}
+            onChange={(e) => setStatusValue(e.target.value)}
+            style={{
+              ...inputStyle,
+              padding: "10px 14px",
+            }}
+          >
+            <option value="novo">Novo</option>
+            <option value="contato_feito">Contato feito</option>
+            <option value="visita_agendada">Visita agendada</option>
+            <option value="aguardando_documentos">Aguardando documentos</option>
+            <option value="publicado">Publicado</option>
+            <option value="perdido">Perdido</option>
+          </select>
+
+          <button
+            onClick={() => onUpdate(lead.id, { status: statusValue })}
+            style={primaryWideButton}
+          >
+            Salvar status
+          </button>
+        </div>
+      </div>
+
+      <textarea
+        value={notesValue}
+        onChange={(e) => setNotesValue(e.target.value)}
+        placeholder="Observações comerciais"
+        style={{
+          ...inputStyle,
+          minHeight: 100,
+          resize: "vertical",
+          marginTop: 14,
+        }}
+      />
+
+      <div style={{ marginTop: 12 }}>
+        <button
+          onClick={() => onUpdate(lead.id, { notes: notesValue })}
+          style={secondaryWideButton}
+        >
+          Salvar observações
+        </button>
+      </div>
+
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
+        {images.map((img) => (
+          <img
+            key={img.id}
+            src={img.image_url}
+            alt="Imóvel enviado"
+            style={{
+              width: 110,
+              height: 80,
+              objectFit: "cover",
+              borderRadius: 12,
+              border: "1px solid #ececec",
+            }}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -1358,6 +1513,17 @@ const greenWideButton: React.CSSProperties = {
   background: "#25d366",
   color: "#fff",
   border: "none",
+  borderRadius: 14,
+  padding: "14px 16px",
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+const secondaryWideButton: React.CSSProperties = {
+  flex: 1,
+  background: "#fff",
+  color: "#222",
+  border: "1px solid #ddd",
   borderRadius: 14,
   padding: "14px 16px",
   fontWeight: 700,
