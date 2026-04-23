@@ -25,9 +25,13 @@ type Reservation = {
   total_amount?: number
 }
 
-type ViewMode = "list" | "details" | "admin"
+type ViewMode = "list" | "details" | "admin" | "login"
 
 export default function App() {
+  const [session, setSession] = useState<any>(null)
+  const [loginEmail, setLoginEmail] = useState("")
+  const [loginPassword, setLoginPassword] = useState("")
+  const [loginMessage, setLoginMessage] = useState("")
   const [properties, setProperties] = useState<Property[]>([])
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [loading, setLoading] = useState(true)
@@ -51,8 +55,20 @@ export default function App() {
   const [adminMessage, setAdminMessage] = useState("")
 
   useEffect(() => {
-    loadAll()
-  }, [])
+  loadAll()
+
+  supabase.auth.getSession().then(({ data }) => {
+    setSession(data.session ?? null)
+  })
+
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    setSession(nextSession)
+  })
+
+  return () => subscription.unsubscribe()
+}, [])
 
   async function loadAll() {
     setLoading(true)
@@ -132,7 +148,33 @@ export default function App() {
     setGuests(1)
     loadAll()
   }
+async function handleLogin() {
+  setLoginMessage("")
 
+  if (!loginEmail || !loginPassword) {
+    setLoginMessage("Preencha e-mail e senha.")
+    return
+  }
+
+  const { error } = await supabase.auth.signInWithPassword({
+    email: loginEmail,
+    password: loginPassword,
+  })
+
+  if (error) {
+    setLoginMessage(error.message)
+    return
+  }
+
+  setLoginEmail("")
+  setLoginPassword("")
+  setView("admin")
+}
+
+async function handleLogout() {
+  await supabase.auth.signOut()
+  setView("list")
+}
   async function handleCreateProperty() {
     if (!title || !region || !address || !nightlyRate) {
       alert("Preencha título, região, endereço e diária.")
@@ -230,17 +272,26 @@ export default function App() {
               onClick={goToList}
               style={secondaryButton}
             >
-              Vitrine
-            </button>
-            <button
-              onClick={() => setView("admin")}
-              style={primaryButton}
-            >
-              Admin
-            </button>
-          </div>
-        </div>
-      </header>
+              <div style={{ display: "flex", gap: 12 }}>
+  <button onClick={goToList} style={secondaryButton}>
+    Vitrine
+  </button>
+
+  {!session ? (
+    <button onClick={() => setView("login")} style={primaryButton}>
+      Login Admin
+    </button>
+  ) : (
+    <>
+      <button onClick={() => setView("admin")} style={primaryButton}>
+        Admin
+      </button>
+      <button onClick={handleLogout} style={secondaryButton}>
+        Sair
+      </button>
+    </>
+  )}
+</div>
 
       <main style={{ maxWidth: 1200, margin: "0 auto", padding: 32 }}>
         {view === "list" && (
@@ -391,7 +442,58 @@ export default function App() {
             </div>
           </>
         )}
+{view === "login" && (
+  <div
+    style={{
+      maxWidth: 480,
+      margin: "0 auto",
+      background: "#fff",
+      borderRadius: 24,
+      border: "1px solid #ececec",
+      boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
+      padding: 24,
+    }}
+  >
+    <h2 style={{ margin: 0, fontSize: 32, color: "#111" }}>Login do Admin</h2>
+    <p style={{ marginTop: 10, color: "#666" }}>
+      Entre com seu usuário para acessar o painel administrativo.
+    </p>
 
+    {loginMessage && (
+      <div
+        style={{
+          marginTop: 16,
+          background: "#fff7ed",
+          color: "#9a3412",
+          padding: 14,
+          borderRadius: 14,
+          fontWeight: 700,
+        }}
+      >
+        {loginMessage}
+      </div>
+    )}
+
+    <div style={{ marginTop: 18, display: "grid", gap: 12 }}>
+      <input
+        value={loginEmail}
+        onChange={(e) => setLoginEmail(e.target.value)}
+        placeholder="E-mail"
+        style={inputStyle}
+      />
+      <input
+        type="password"
+        value={loginPassword}
+        onChange={(e) => setLoginPassword(e.target.value)}
+        placeholder="Senha"
+        style={inputStyle}
+      />
+      <button onClick={handleLogin} style={primaryWideButton}>
+        Entrar
+      </button>
+    </div>
+  </div>
+)}
         {view === "details" && selectedProperty && (
           <div
             style={{
@@ -539,21 +641,27 @@ export default function App() {
           </div>
         )}
 
-        {view === "admin" && (
-          <div style={{ display: "grid", gap: 28 }}>
-            <div>
-              <h2 style={{ margin: 0, fontSize: 34, color: "#111" }}>Painel Admin</h2>
-              <p style={{ marginTop: 8, color: "#666", fontSize: 18 }}>
-                Cadastre imóveis e acompanhe as reservas recebidas.
-              </p>
-            </div>
+        {view === "admin" && !session && (
+  <div
+    style={{
+      background: "#fff",
+      borderRadius: 24,
+      border: "1px solid #ececec",
+      boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
+      padding: 24,
+    }}
+  >
+    <h2 style={{ margin: 0, fontSize: 30, color: "#111" }}>Acesso restrito</h2>
+    <p style={{ marginTop: 10, color: "#666", fontSize: 18 }}>
+      Faça login para acessar o painel administrativo.
+    </p>
+    <button onClick={() => setView("login")} style={{ ...primaryWideButton, marginTop: 16 }}>
+      Ir para login
+    </button>
+  </div>
+)}
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "0.9fr 1.1fr",
-                gap: 24,
-              }}
+{view === "admin" && session && (
             >
               <div
                 style={{
