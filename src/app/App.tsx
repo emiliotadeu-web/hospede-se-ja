@@ -28,6 +28,8 @@ type Reservation = {
 
 type ViewMode = "list" | "details" | "admin";
 
+const WHATSAPP_NUMBER = "5561999999999";
+
 export default function App() {
   const auth = useAuth();
 
@@ -92,22 +94,45 @@ export default function App() {
     setSuccessMessage("");
   }
 
+  function openWhatsApp(message: string) {
+    const encoded = encodeURIComponent(message);
+    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encoded}`, "_blank");
+  }
+
+  function handleOwnerWhatsApp() {
+    const message =
+      "Olá! Quero anunciar meu flat na Hospede-se Já e entender como funciona a plataforma com taxa de 5% sobre reservas geradas.";
+    openWhatsApp(message);
+  }
+
+  function handleReserveWhatsAppDirect(property: Property) {
+    const message =
+      `Olá! Tenho interesse neste flat:%0A%0A` +
+      `Imóvel: ${property.title}%0A` +
+      `Região: ${property.region}%0A` +
+      `Endereço: ${property.address}%0A` +
+      `Valor: R$ ${property.nightly_rate} por noite%0A%0A` +
+      `Gostaria de mais informações.`;
+
+    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${message}`, "_blank");
+  }
+
   async function handleLogin() {
-  setLoginMessage("");
+    setLoginMessage("");
 
-  if (!loginEmail || !loginPassword) {
-    setLoginMessage("Preencha e-mail e senha.");
-    return;
-  }
+    if (!loginEmail || !loginPassword) {
+      setLoginMessage("Preencha e-mail e senha.");
+      return;
+    }
 
-  try {
-    await auth.signIn(loginEmail, loginPassword);
-    setLoginEmail("");
-    setLoginPassword("");
-  } catch (error: any) {
-    setLoginMessage(error.message || "Erro ao fazer login.");
+    try {
+      await auth.signIn(loginEmail, loginPassword);
+      setLoginEmail("");
+      setLoginPassword("");
+    } catch (error: any) {
+      setLoginMessage(error.message || "Erro ao fazer login.");
+    }
   }
-} 
 
   async function handleLogout() {
     await auth.signOut();
@@ -152,6 +177,17 @@ export default function App() {
       return;
     }
 
+    const whatsappMessage =
+      `Olá! Recebi uma nova solicitação de reserva pelo site.%0A%0A` +
+      `Imóvel: ${selectedProperty.title}%0A` +
+      `Nome: ${guestName}%0A` +
+      `E-mail: ${guestEmail}%0A` +
+      `Telefone: ${guestPhone || "Não informado"}%0A` +
+      `Check-in: ${checkIn}%0A` +
+      `Check-out: ${checkOut}%0A` +
+      `Hóspedes: ${guests}%0A` +
+      `Valor estimado: R$ ${totalAmount}`;
+
     setSuccessMessage("Reserva enviada com sucesso.");
     setGuestName("");
     setGuestEmail("");
@@ -160,6 +196,8 @@ export default function App() {
     setCheckOut("");
     setGuests(1);
     loadAll();
+
+    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${whatsappMessage}`, "_blank");
   }
 
   async function handleCreateProperty() {
@@ -280,6 +318,7 @@ export default function App() {
             alignItems: "center",
             justifyContent: "space-between",
             gap: 20,
+            flexWrap: "wrap",
           }}
         >
           <div
@@ -304,17 +343,20 @@ export default function App() {
                 Hospede-se Já
               </h1>
               <p style={{ margin: "6px 0 0", color: "#666" }}>
-                Flats em Brasília
+                Plataforma de flats em Brasília
               </p>
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 12 }}>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <button onClick={goToList} style={secondaryButton}>
-              Vitrine
+              Início
             </button>
             <button onClick={() => setView("admin")} style={primaryButton}>
               Admin
+            </button>
+            <button onClick={handleOwnerWhatsApp} style={greenButton}>
+              Anunciar meu flat
             </button>
             <button onClick={handleLogout} style={secondaryButton}>
               Sair
@@ -326,14 +368,208 @@ export default function App() {
       <main style={{ maxWidth: 1200, margin: "0 auto", padding: 32 }}>
         {view === "list" && (
           <>
-            <div style={{ marginBottom: 28 }}>
+            <section
+              style={{
+                background: "linear-gradient(135deg, #fff 0%, #fff7f8 100%)",
+                borderRadius: 28,
+                padding: 36,
+                border: "1px solid #ececec",
+                boxShadow: "0 8px 24px rgba(0,0,0,0.05)",
+                marginBottom: 32,
+              }}
+            >
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1.2fr 0.8fr",
+                  gap: 28,
+                  alignItems: "center",
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      display: "inline-block",
+                      background: "#fff0f3",
+                      color: "#ff385c",
+                      padding: "8px 14px",
+                      borderRadius: 999,
+                      fontWeight: 700,
+                      marginBottom: 18,
+                    }}
+                  >
+                    Plataforma com taxa de 5%
+                  </div>
+
+                  <h2
+                    style={{
+                      margin: 0,
+                      fontSize: 48,
+                      lineHeight: 1.1,
+                      color: "#111",
+                    }}
+                  >
+                    Anuncie seu flat em Brasília e pague apenas 5% sobre reservas geradas
+                  </h2>
+
+                  <p
+                    style={{
+                      marginTop: 18,
+                      fontSize: 20,
+                      lineHeight: 1.6,
+                      color: "#555",
+                      maxWidth: 760,
+                    }}
+                  >
+                    Publicamos seu imóvel, conectamos com hóspedes e você só paga quando gerar aluguel.
+                    Sem mensalidade, sem custo fixo e sem administração do seu imóvel.
+                  </p>
+
+                  <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 24 }}>
+                    <button onClick={handleOwnerWhatsApp} style={primaryButton}>
+                      Quero anunciar meu flat
+                    </button>
+                    <button onClick={() => window.scrollTo({ top: 900, behavior: "smooth" })} style={secondaryButton}>
+                      Ver flats publicados
+                    </button>
+                  </div>
+                </div>
+
+                <div style={cardStyle}>
+                  <h3 style={{ marginTop: 0, fontSize: 28, color: "#111" }}>
+                    Como funciona
+                  </h3>
+
+                  <div style={{ display: "grid", gap: 14 }}>
+                    {[
+                      "1. Você cadastra seu flat",
+                      "2. Nós publicamos na plataforma",
+                      "3. Recebemos pedidos de reserva",
+                      "4. Você aprova e hospeda",
+                      "5. Cobramos apenas 5% do aluguel gerado",
+                    ].map((item) => (
+                      <div
+                        key={item}
+                        style={{
+                          background: "#fafafa",
+                          border: "1px solid #ececec",
+                          borderRadius: 16,
+                          padding: 16,
+                          fontWeight: 600,
+                          color: "#222",
+                        }}
+                      >
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: 20,
+                marginBottom: 32,
+              }}
+            >
+              {[
+                {
+                  title: "Sem taxa fixa",
+                  text: "Você não paga mensalidade. Só paga quando a plataforma gerar reserva para seu imóvel.",
+                },
+                {
+                  title: "Você continua no controle",
+                  text: "Você mantém a operação e a hospedagem do imóvel. Nós focamos em divulgação e geração de demanda.",
+                },
+                {
+                  title: "Modelo leve e escalável",
+                  text: "Sem administração e sem exclusividade pesada. Mais simples para entrar e começar a anunciar.",
+                },
+              ].map((item) => (
+                <div key={item.title} style={cardStyle}>
+                  <h3 style={{ marginTop: 0, fontSize: 26, color: "#111" }}>{item.title}</h3>
+                  <p style={{ margin: 0, color: "#555", lineHeight: 1.7, fontSize: 17 }}>{item.text}</p>
+                </div>
+              ))}
+            </section>
+
+            <section
+              style={{
+                background: "#fff",
+                borderRadius: 28,
+                padding: 32,
+                border: "1px solid #ececec",
+                boxShadow: "0 8px 24px rgba(0,0,0,0.05)",
+                marginBottom: 32,
+              }}
+            >
+              <h2 style={{ marginTop: 0, fontSize: 34, color: "#111" }}>
+                Por que anunciar com a Hospede-se Já
+              </h2>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, 1fr)",
+                  gap: 18,
+                  marginTop: 18,
+                }}
+              >
+                {[
+                  "Mais visibilidade para flats em Brasília",
+                  "Modelo simples: só paga 5% sobre o que gerar",
+                  "Sem custo antecipado",
+                  "Captação de hóspedes pela plataforma e WhatsApp",
+                  "Entrada mais fácil para proprietários",
+                  "Ideal para testar sem compromisso pesado",
+                ].map((item) => (
+                  <div
+                    key={item}
+                    style={{
+                      background: "#fafafa",
+                      border: "1px solid #ececec",
+                      borderRadius: 16,
+                      padding: 18,
+                      fontSize: 17,
+                      color: "#222",
+                      fontWeight: 600,
+                    }}
+                  >
+                    ✔ {item}
+                  </div>
+                ))}
+              </div>
+
+              <div
+                style={{
+                  marginTop: 24,
+                  background: "#fdf2f8",
+                  border: "1px solid #fbcfe8",
+                  borderRadius: 20,
+                  padding: 22,
+                }}
+              >
+                <h3 style={{ marginTop: 0, fontSize: 28, color: "#111" }}>
+                  Transparência total da taxa
+                </h3>
+                <p style={{ margin: 0, color: "#444", fontSize: 18, lineHeight: 1.7 }}>
+                  Você paga apenas <strong>5%</strong> sobre reservas confirmadas geradas pela plataforma.
+                  Se não tiver reserva, você não paga nada.
+                </p>
+              </div>
+            </section>
+
+            <section style={{ marginBottom: 28 }}>
               <h2 style={{ margin: 0, fontSize: 30, color: "#111" }}>
                 Flats disponíveis
               </h2>
               <p style={{ marginTop: 8, color: "#666", fontSize: 18 }}>
                 Hospedagens selecionadas para curta temporada em Brasília
               </p>
-            </div>
+            </section>
 
             {loading && <p>Carregando imóveis...</p>}
 
@@ -438,14 +674,43 @@ export default function App() {
                       <button onClick={() => openDetails(p)} style={primaryWideButton}>
                         Reservar
                       </button>
-                      <button onClick={() => openDetails(p)} style={secondaryWideButton}>
-                        Ver detalhes
+                      <button
+                        onClick={() => handleReserveWhatsAppDirect(p)}
+                        style={greenWideButton}
+                      >
+                        WhatsApp
                       </button>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
+
+            <section
+              style={{
+                marginTop: 40,
+                background: "linear-gradient(135deg, #111827 0%, #0f172a 100%)",
+                borderRadius: 28,
+                padding: 34,
+                color: "#fff",
+              }}
+            >
+              <h2 style={{ marginTop: 0, fontSize: 36 }}>
+                Tem um flat em Brasília?
+              </h2>
+              <p style={{ fontSize: 20, color: "rgba(255,255,255,0.85)", lineHeight: 1.7 }}>
+                Publique com a Hospede-se Já e pague apenas 5% sobre o que for gerado em aluguel.
+                Sem taxa fixa, sem mensalidade e sem custo antecipado.
+              </p>
+              <div style={{ marginTop: 20, display: "flex", gap: 14, flexWrap: "wrap" }}>
+                <button onClick={handleOwnerWhatsApp} style={greenButton}>
+                  Quero anunciar meu flat
+                </button>
+                <button onClick={() => setView("admin")} style={secondaryButton}>
+                  Ir para o painel
+                </button>
+              </div>
+            </section>
           </>
         )}
 
@@ -528,6 +793,15 @@ export default function App() {
                     {selectedProperty.description ||
                       "Flat premium para curta temporada em Brasília, com ótima localização e conforto para estadias executivas e lazer."}
                   </p>
+
+                  <div style={{ marginTop: 20 }}>
+                    <button
+                      onClick={() => handleReserveWhatsAppDirect(selectedProperty)}
+                      style={greenWideButton}
+                    >
+                      Falar sobre este flat no WhatsApp
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -577,6 +851,13 @@ export default function App() {
 
                   <button onClick={handleReserve} style={primaryWideButton}>
                     Enviar reserva
+                  </button>
+
+                  <button
+                    onClick={() => handleReserveWhatsAppDirect(selectedProperty)}
+                    style={greenWideButton}
+                  >
+                    Reservar pelo WhatsApp
                   </button>
                 </div>
               </div>
@@ -702,6 +983,26 @@ export default function App() {
           </div>
         )}
       </main>
+
+      <a
+        href={`https://wa.me/${WHATSAPP_NUMBER}`}
+        target="_blank"
+        rel="noreferrer"
+        style={{
+          position: "fixed",
+          right: 24,
+          bottom: 24,
+          background: "#25d366",
+          color: "#fff",
+          textDecoration: "none",
+          borderRadius: 999,
+          padding: "14px 18px",
+          fontWeight: 700,
+          boxShadow: "0 10px 24px rgba(0,0,0,0.16)",
+        }}
+      >
+        WhatsApp
+      </a>
     </div>
   );
 }
@@ -743,6 +1044,16 @@ const primaryButton: React.CSSProperties = {
   cursor: "pointer",
 };
 
+const greenButton: React.CSSProperties = {
+  background: "#25d366",
+  color: "#fff",
+  border: "none",
+  borderRadius: 999,
+  padding: "12px 20px",
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
 const secondaryButton: React.CSSProperties = {
   background: "#fff",
   color: "#222",
@@ -764,11 +1075,11 @@ const primaryWideButton: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const secondaryWideButton: React.CSSProperties = {
+const greenWideButton: React.CSSProperties = {
   flex: 1,
-  background: "#fff",
-  color: "#222",
-  border: "1px solid #ddd",
+  background: "#25d366",
+  color: "#fff",
+  border: "none",
   borderRadius: 14,
   padding: "14px 16px",
   fontWeight: 700,
