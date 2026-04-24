@@ -1,0 +1,19 @@
+Supabase.
+senha : WxhlszpQBQ4o1TQn
+Data Base password.
+usuário : emilio.tadeu@gmail.com
+senha : Brasilia@1970
+
+Senha banco de dados do projeto : rmrsyhvvorrrsqnlqjgf
+
+Project URL : https://rmrsyhvvorrrsqnlqjgf.supabase.co
+
+github : https://github.com/emiliotadeu-web/hospede-se-ja.git
+
+
+
+git remote add origin https://github.com/emiliotadeu-web/hospede-se-ja.git
+git branch -M main
+git push -u origin main
+
+cd C:\Users\re040668\hospede-se-ja

@@ -70,7 +70,7 @@ type PropertyBlock = {
 
 type ViewMode = "list" | "details" | "admin";
 
-const WHATSAPP_NUMBER = "5561981239357";
+const WHATSAPP_NUMBER = "5561999999999";
 const PLATFORM_FEE_PERCENT = 0.1;
 
 export default function App() {
@@ -124,8 +124,34 @@ export default function App() {
   const [calendarMessage, setCalendarMessage] = useState("");
 
   useEffect(() => {
-    loadAll();
+    loadPublicData();
   }, []);
+
+  useEffect(() => {
+    if (auth.session && view === "admin") {
+      loadAll();
+    }
+  }, [auth.session, view]);
+
+  async function loadPublicData() {
+    setLoading(true);
+
+    const [propertyResponse, propertyBlockResponse] = await Promise.all([
+      supabase
+        .from("properties")
+        .select("*")
+        .eq("status", "published")
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("property_blocks")
+        .select("*")
+        .order("start_date", { ascending: true }),
+    ]);
+
+    setProperties((propertyResponse.data as Property[]) || []);
+    setPropertyBlocks((propertyBlockResponse.data as PropertyBlock[]) || []);
+    setLoading(false);
+  }
 
   async function loadAll() {
     setLoading(true);
@@ -188,6 +214,11 @@ export default function App() {
     setCalendarMessage("");
   }
 
+  function goToAdmin() {
+    setView("admin");
+    setSelectedProperty(null);
+  }
+
   function openWhatsApp(message: string) {
     const encoded = encodeURIComponent(message);
     window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encoded}`, "_blank");
@@ -223,6 +254,7 @@ export default function App() {
       await auth.signIn(loginEmail, loginPassword);
       setLoginEmail("");
       setLoginPassword("");
+      setView("admin");
     } catch (error: any) {
       setLoginMessage(error.message || "Erro ao fazer login.");
     }
@@ -314,8 +346,8 @@ export default function App() {
     setCheckIn("");
     setCheckOut("");
     setGuests(1);
-    loadAll();
 
+    await loadPublicData();
     openWhatsApp(whatsappMessage);
   }
 
@@ -426,7 +458,6 @@ export default function App() {
     setLeadPropertyType("");
     setLeadMessage("");
     setLeadFiles(null);
-    loadAll();
 
     openWhatsApp(whatsappMessage);
   }
@@ -525,7 +556,7 @@ export default function App() {
     return propertyBlocks.filter((block) => block.property_id === selectedProperty.id);
   }, [propertyBlocks, selectedProperty]);
 
-  if (auth.loading) {
+  if (loading && view !== "admin") {
     return (
       <div style={pageStyle}>
         <div style={cardStyle}>Carregando...</div>
@@ -533,7 +564,15 @@ export default function App() {
     );
   }
 
-  if (!auth.session) {
+  if (view === "admin" && auth.loading) {
+    return (
+      <div style={pageStyle}>
+        <div style={cardStyle}>Carregando...</div>
+      </div>
+    );
+  }
+
+  if (view === "admin" && !auth.session) {
     return (
       <div style={pageStyle}>
         <div style={{ ...cardStyle, width: 420 }}>
@@ -573,6 +612,9 @@ export default function App() {
             />
             <button onClick={handleLogin} style={primaryWideButton}>
               Entrar
+            </button>
+            <button onClick={goToList} style={secondaryWideButton}>
+              Voltar ao site
             </button>
           </div>
         </div>
@@ -640,15 +682,17 @@ export default function App() {
             <button onClick={goToList} style={secondaryButton}>
               Início
             </button>
-            <button onClick={() => setView("admin")} style={primaryButton}>
+            <button onClick={goToAdmin} style={primaryButton}>
               Admin
             </button>
             <button onClick={handleOwnerWhatsApp} style={greenButton}>
               Anunciar meu flat
             </button>
-            <button onClick={handleLogout} style={secondaryButton}>
-              Sair
-            </button>
+            {auth.session && (
+              <button onClick={handleLogout} style={secondaryButton}>
+                Sair
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -967,8 +1011,6 @@ export default function App() {
               </p>
             </section>
 
-            {loading && <p>Carregando imóveis...</p>}
-
             {!loading && properties.length === 0 && (
               <div style={cardStyle}>Nenhum imóvel cadastrado ainda.</div>
             )}
@@ -1102,7 +1144,7 @@ export default function App() {
                 <button onClick={handleOwnerWhatsApp} style={greenButton}>
                   Quero anunciar meu flat
                 </button>
-                <button onClick={() => setView("admin")} style={secondaryButton}>
+                <button onClick={goToAdmin} style={secondaryButton}>
                   Ir para o painel
                 </button>
               </div>
@@ -1283,7 +1325,7 @@ export default function App() {
           </div>
         )}
 
-        {view === "admin" && (
+        {view === "admin" && auth.session && (
           <div style={{ display: "grid", gap: 28 }}>
             <div>
               <h2 style={{ margin: 0, fontSize: 34, color: "#111" }}>Painel Admin</h2>
